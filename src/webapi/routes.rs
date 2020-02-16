@@ -1,12 +1,12 @@
-use super::{handlers};
+use super::handlers;
 use bytes::buf::BufExt;
 use hyper::{error::Result, Body, Method, Request, Response, StatusCode};
 
+pub const ROUTE_PATH_INDEX: &str = "/";
 pub const ROUTE_PATH_SPEC_JSON: &str = "/openapi.json";
 pub const ROUTE_PATH_SPEC_YAML: &str = "/openapi.yaml";
 pub const ROUTE_PATH_SIGHN_IN: &str = "/api/signin";
 pub const ROUTE_PATH_SIGHN_UP: &str = "/api/signup";
-const ROUTE_PATH_INDEX: &str = "/";
 const PATH_3: &str = "/3";
 const PATH_4: &str = "/4";
 
@@ -16,6 +16,14 @@ pub const ROUTES: [&str; 4] = [ROUTE_PATH_SIGHN_IN, ROUTE_PATH_SIGHN_UP, PATH_3,
 pub async fn service_route(req: Request<Body>) -> Result<Response<Body>> {
     let (parts, body) = req.into_parts();
     let reader = hyper::body::aggregate(body).await?.reader();
+
+    if parts.method == Method::POST && parts.headers.get("Authorization").is_none() {
+        return Ok(Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header("WWW-Authenticate", "Basic realm=\"Access to microservice\"")
+            .body(Body::empty())
+            .unwrap());
+    }
 
     let resp = {
         match (parts.method, parts.uri.path()) {

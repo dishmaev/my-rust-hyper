@@ -1,0 +1,10 @@
+applications:
+  - path: .
+    name: my-bin
+    memory: 64M
+    instances: 1
+    disk_quota: 300M
+    services: []
+    env:
+      MY_BIN_HOST: 0.0.0.0
+      MY_BIN_VAR: TEST

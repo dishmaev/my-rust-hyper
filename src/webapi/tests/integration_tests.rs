@@ -20,6 +20,28 @@ async fn call_service(method: hyper::Method, port: u16, path: &str, body: Body) 
 }
 
 #[tokio::test(threaded_scheduler)]
+async fn test_index_ok() {
+    let addr = get_socket_addr();
+    let make_svc = make_service_fn(|_| async { Ok::<_, Error>(service_fn(routes::service_route)) });
+    let app = Server::bind(&addr).serve(make_svc);
+
+    tokio::spawn(async move {
+        if let Err(err) = app.await {
+            eprintln!("server error: {}", err);
+        }
+    });
+
+    let resp = call_service(
+        Method::GET,
+        addr.port(),
+        routes::ROUTE_PATH_INDEX,
+        Body::empty(),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test(threaded_scheduler)]
 async fn test_spec_json_ok() {
     let addr = get_socket_addr();
     let make_svc = make_service_fn(|_| async { Ok::<_, Error>(service_fn(routes::service_route)) });
