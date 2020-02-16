@@ -16,3 +16,4 @@ bytes = "0.5"
 
 [dev-dependencies]
 futures-await-test = "0.3"
+rand = "0.7"

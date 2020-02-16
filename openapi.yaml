@@ -1,0 +1,60 @@
+openapi: 3.0.1
+info:
+  title: Microservice
+  version: 0.1.0
+servers:
+  - url: 'https://my-bin.eu-gb.mybluemix.net'
+paths:
+  /api/signin:
+    post:
+      tags:
+        - signin
+      operationId: Signin
+      requestBody:
+        description: Signin object that needs to be added to a new user
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Signin'
+        required: true
+      responses:
+        default:
+          description: successful operation
+          content: {}
+  /api/signup:
+    post:
+      tags:
+        - signup
+      operationId: Signup
+      requestBody:
+        description: Signup object that needs to be used for a user authorization
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Signup'
+        required: true
+      responses:
+        default:
+          description: successful operation
+          content: {}
+        "401":
+          description: unauthorized
+          content: {}
+components:
+  schemas:
+    Signin:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        email:
+          type: string
+    Signup:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
