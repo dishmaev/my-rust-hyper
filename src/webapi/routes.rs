@@ -1,6 +1,7 @@
-use super::handlers;
+use super::{handlers, models};
 use bytes::buf::BufExt;
 use hyper::{error::Result, Body, Method, Request, Response, StatusCode};
+use std::sync::Arc;
 
 pub const ROUTE_PATH_INDEX: &str = "/";
 pub const ROUTE_PATH_SPEC_JSON: &str = "/openapi.json";
@@ -13,7 +14,10 @@ const PATH_4: &str = "/4";
 #[cfg(test)]
 pub const ROUTES: [&str; 4] = [ROUTE_PATH_SIGHN_IN, ROUTE_PATH_SIGHN_UP, PATH_3, PATH_4];
 
-pub async fn service_route(req: Request<Body>) -> Result<Response<Body>> {
+pub async fn service_route(
+    req: Request<Body>,
+    _settings: Arc<models::Settings>,
+) -> Result<Response<Body>> {
     let (parts, body) = req.into_parts();
     let reader = hyper::body::aggregate(body).await?.reader();
 

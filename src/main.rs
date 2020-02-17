@@ -3,8 +3,10 @@ mod webapi;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Error, Server};
 use std::env;
+use std::fs;
 use std::net::SocketAddr;
-use webapi::routes;
+use std::sync::Arc;
+use webapi::{models, routes};
 
 #[tokio::main]
 async fn main() {
@@ -12,6 +14,7 @@ async fn main() {
     const ENV_PORT: &str = "PORT";
     const DEFAULT_HOST: &str = "127.0.0.1";
     const DEFAULT_PORT: u16 = 3456;
+    const APP_SETTINGS_FILE: &str = "appsettings.json";
 
     let host: Option<String> = {
         match env::var(ENV_HOST).is_ok() {
@@ -34,7 +37,15 @@ async fn main() {
     )
     .parse::<SocketAddr>()
     .unwrap();
-    let make_svc = make_service_fn(|_| async { Ok::<_, Error>(service_fn(routes::service_route)) });
+
+    let config_file: models::Settings =
+        serde_json::from_str(&fs::read_to_string(APP_SETTINGS_FILE).unwrap()).unwrap();
+    let settings = Arc::new(config_file);
+
+    let make_svc = make_service_fn(move |_| {
+        let s = settings.clone();
+        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
+    });
     let server = Server::bind(&addr).serve(make_svc);
     let graceful = server.with_graceful_shutdown(shutdown_signal());
 

@@ -9,6 +9,11 @@ pub struct Event {
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct Command{
-    pub name: Option<String>
+pub struct Command {
+    pub name: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Settings {
+    pub connection_string: String,
 }
