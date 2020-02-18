@@ -13,7 +13,13 @@ pub struct Command {
     pub name: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct Settings {
-    pub connection_string: String,
+#[derive(Deserialize)]
+pub struct AppSettings {
+    pub authentication: Vec<UserPassword>,
+}
+
+#[derive(Deserialize)]
+pub struct UserPassword {
+    pub user: String,
+    pub password: String,
 }

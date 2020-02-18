@@ -1,4 +1,5 @@
 use super::{handlers, models};
+use base64;
 use bytes::buf::BufExt;
 use hyper::{error::Result, Body, Method, Request, Response, StatusCode};
 use std::sync::Arc;
@@ -16,17 +17,30 @@ pub const ROUTES: [&str; 4] = [ROUTE_PATH_SIGHN_IN, ROUTE_PATH_SIGHN_UP, PATH_3,
 
 pub async fn service_route(
     req: Request<Body>,
-    _settings: Arc<models::Settings>,
+    access_checker: Arc<AccessChecker>,
 ) -> Result<Response<Body>> {
     let (parts, body) = req.into_parts();
     let reader = hyper::body::aggregate(body).await?.reader();
 
-    if parts.method == Method::POST && parts.headers.get("Authorization").is_none() {
-        return Ok(Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .header("WWW-Authenticate", "Basic realm=\"Access to microservice\"")
-            .body(Body::empty())
-            .unwrap());
+    if parts.method == Method::POST {
+        let mut is_authorized = false;
+        if !parts.headers.get("Authorization").is_none() {
+            is_authorized = access_checker.is_authorized(
+                parts
+                    .headers
+                    .get("Authorization")
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+            );
+        }
+        if !is_authorized {
+            return Ok(Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .header("WWW-Authenticate", "Basic realm=\"Access to microservice\"")
+                .body(Body::empty())
+                .unwrap());
+        }
     }
 
     let resp = {
@@ -49,4 +63,27 @@ pub async fn service_route(
         }
     };
     Ok(resp)
+}
+
+pub fn get_basic_authorization(user: &String, password: &String) -> String {
+    format!(
+        "Basic {}",
+        base64::encode(&format!("{}:{}", user, password))
+    )
+}
+
+pub struct AccessChecker {
+    pub user_password: Vec<models::UserPassword>,
+}
+
+impl AccessChecker {
+    pub fn initialize(&self) {}
+    pub fn is_authorized(&self, header: &str) -> bool {
+        for item in &self.user_password {
+            if header == get_basic_authorization(&item.user, &item.password) {
+                return true;
+            }
+        }
+        false
+    }
 }

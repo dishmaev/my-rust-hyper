@@ -38,13 +38,21 @@ async fn main() {
     .parse::<SocketAddr>()
     .unwrap();
 
-    let config_file: models::Settings =
+    let config_file: models::AppSettings =
         serde_json::from_str(&fs::read_to_string(APP_SETTINGS_FILE).unwrap()).unwrap();
-    let settings = Arc::new(config_file);
+    let access_checker = routes::AccessChecker {
+        user_password: config_file.authentication,
+    };
+    access_checker.initialize();
+    let access_checker_arc = Arc::new(access_checker);
 
     let make_svc = make_service_fn(move |_| {
-        let s = settings.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
+        let ac = access_checker_arc.clone();
+        async move {
+            Ok::<_, Error>(service_fn(move |req| {
+                routes::service_route(req, ac.clone())
+            }))
+        }
     });
     let server = Server::bind(&addr).serve(make_svc);
     let graceful = server.with_graceful_shutdown(shutdown_signal());

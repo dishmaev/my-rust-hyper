@@ -6,15 +6,18 @@ use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
-const APP_SETTINGS_FILE: &str = "appsettings.test.json";
-
-fn get_sock_addr_and_settings() -> (SocketAddr, Arc<models::Settings>) {
+fn get_sock_addr_and_app_settings() -> (SocketAddr, Arc<routes::AccessChecker>) {
+    const APP_SETTINGS_FILE: &str = "appsettings.test.json";
     let mut rng = rand::thread_rng();
-    let config_file: models::Settings =
+    let config_file: models::AppSettings =
         serde_json::from_str(&fs::read_to_string(APP_SETTINGS_FILE).unwrap()).unwrap();
+    let access_checker = routes::AccessChecker {
+        user_password: config_file.authentication,
+    };
+    access_checker.initialize();
     (
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), rng.gen_range(15000, 25000)),
-        Arc::new(config_file),
+        Arc::new(access_checker),
     )
 }
 
@@ -22,7 +25,10 @@ async fn call_service(method: hyper::Method, port: u16, path: &str, body: Body) 
     let req = Request::builder()
         .method(method)
         .uri(format!("http://{}:{}{}", Ipv4Addr::LOCALHOST, port, path))
-        .header("Authorization", "")
+        .header(
+            "Authorization",
+            routes::get_basic_authorization(&"test".to_string(), &"1234567890".to_string()),
+        )
         .body(body)
         .expect("request builder");
     let client = Client::new();
@@ -31,7 +37,7 @@ async fn call_service(method: hyper::Method, port: u16, path: &str, body: Body) 
 
 #[tokio::test(threaded_scheduler)]
 async fn test_index_ok() {
-    let (addr, sets) = get_sock_addr_and_settings();
+    let (addr, sets) = get_sock_addr_and_app_settings();
     let make_svc = make_service_fn(move |_| {
         let s = sets.clone();
         async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
@@ -56,7 +62,7 @@ async fn test_index_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_spec_json_ok() {
-    let (addr, sets) = get_sock_addr_and_settings();
+    let (addr, sets) = get_sock_addr_and_app_settings();
     let make_svc = make_service_fn(move |_| {
         let s = sets.clone();
         async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
@@ -81,7 +87,7 @@ async fn test_spec_json_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_spec_yaml_ok() {
-    let (addr, sets) = get_sock_addr_and_settings();
+    let (addr, sets) = get_sock_addr_and_app_settings();
     let make_svc = make_service_fn(move |_| {
         let s = sets.clone();
         async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
@@ -106,7 +112,7 @@ async fn test_spec_yaml_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_route_ok() {
-    let (addr, sets) = get_sock_addr_and_settings();
+    let (addr, sets) = get_sock_addr_and_app_settings();
     let make_svc = make_service_fn(move |_| {
         let s = sets.clone();
         async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
@@ -127,7 +133,7 @@ async fn test_route_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_route_err() {
-    let (addr, sets) = get_sock_addr_and_settings();
+    let (addr, sets) = get_sock_addr_and_app_settings();
     let make_svc = make_service_fn(move |_| {
         let s = sets.clone();
         async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
@@ -146,7 +152,7 @@ async fn test_route_err() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_signin_ok() {
-    let (addr, sets) = get_sock_addr_and_settings();
+    let (addr, sets) = get_sock_addr_and_app_settings();
     let make_svc = make_service_fn(move |_| {
         let s = sets.clone();
         async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
@@ -171,7 +177,7 @@ async fn test_signin_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_signin_err() {
-    let (addr, sets) = get_sock_addr_and_settings();
+    let (addr, sets) = get_sock_addr_and_app_settings();
     let make_svc = make_service_fn(move |_| {
         let s = sets.clone();
         async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
@@ -196,7 +202,7 @@ async fn test_signin_err() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_signup_ok() {
-    let (addr, sets) = get_sock_addr_and_settings();
+    let (addr, sets) = get_sock_addr_and_app_settings();
     let make_svc = make_service_fn(move |_| {
         let s = sets.clone();
         async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
@@ -221,7 +227,7 @@ async fn test_signup_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_signup_err() {
-    let (addr, sets) = get_sock_addr_and_settings();
+    let (addr, sets) = get_sock_addr_and_app_settings();
     let make_svc = make_service_fn(move |_| {
         let s = sets.clone();
         async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
