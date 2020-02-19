@@ -2,6 +2,7 @@ use super::{handlers, models};
 use base64;
 use bytes::buf::BufExt;
 use hyper::{error::Result, Body, Method, Request, Response, StatusCode};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub const ROUTE_PATH_INDEX: &str = "/";
@@ -73,17 +74,24 @@ pub fn get_basic_authorization(user: &String, password: &String) -> String {
 }
 
 pub struct AccessChecker {
-    pub user_password: Vec<models::UserPassword>,
+    user_authorization: HashMap<String, String>,
 }
 
 impl AccessChecker {
-    pub fn initialize(&self) {}
-    pub fn is_authorized(&self, header: &str) -> bool {
-        for item in &self.user_password {
-            if header == get_basic_authorization(&item.user, &item.password) {
-                return true;
-            }
+    pub fn from_app_settings(app_settings: &models::AppSettings) -> AccessChecker {
+        let mut book_reviews = HashMap::new();
+        for item in &app_settings.authentication {
+            book_reviews.insert(
+                get_basic_authorization(&item.user, &item.password),
+                item.user.clone(),
+            );
         }
-        false
+        AccessChecker {
+            user_authorization: book_reviews,
+        }
+    }
+
+    pub fn is_authorized(&self, header: &str) -> bool {
+        *&self.user_authorization.contains_key(header)
     }
 }

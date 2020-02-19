@@ -38,12 +38,9 @@ async fn main() {
     .parse::<SocketAddr>()
     .unwrap();
 
-    let config_file: models::AppSettings =
+    let app_settings: models::AppSettings =
         serde_json::from_str(&fs::read_to_string(APP_SETTINGS_FILE).unwrap()).unwrap();
-    let access_checker = routes::AccessChecker {
-        user_password: config_file.authentication,
-    };
-    access_checker.initialize();
+    let access_checker = routes::AccessChecker::from_app_settings(&app_settings);
     let access_checker_arc = Arc::new(access_checker);
 
     let make_svc = make_service_fn(move |_| {

@@ -9,12 +9,9 @@ use std::sync::Arc;
 fn get_sock_addr_and_app_settings() -> (SocketAddr, Arc<routes::AccessChecker>) {
     const APP_SETTINGS_FILE: &str = "appsettings.test.json";
     let mut rng = rand::thread_rng();
-    let config_file: models::AppSettings =
+    let app_settings: models::AppSettings =
         serde_json::from_str(&fs::read_to_string(APP_SETTINGS_FILE).unwrap()).unwrap();
-    let access_checker = routes::AccessChecker {
-        user_password: config_file.authentication,
-    };
-    access_checker.initialize();
+    let access_checker = routes::AccessChecker::from_app_settings(&app_settings);
     (
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), rng.gen_range(15000, 25000)),
         Arc::new(access_checker),
