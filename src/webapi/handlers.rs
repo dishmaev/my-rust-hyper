@@ -1,100 +1,255 @@
+use sqlx::{PgPool, Row};
+use std::collections::HashMap;
+use std::convert::TryFrom;
+
 use super::models;
-use hyper::{header, Body, Response, StatusCode};
-use serde::ser;
-use std::env;
-use std::fs;
 
-fn resp<T>(res: &T) -> Response<Body>
-where
-    T: ser::Serialize,
-{
-    Response::builder()
-        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-        .body(Body::from(serde_json::to_string(&res).unwrap()))
-        .unwrap()
+pub enum ErrorCode {
+    ReplyErrorInternal = -1,
+    ReplyErrorDatabase = -2,
+    ReplyErrorNotFound = -100,
 }
 
-fn resp_with_code(status: StatusCode) -> Response<Body> {
-    Response::builder()
-        .status(status)
-        .body(Body::empty())
-        .unwrap()
+pub struct ReplyProvider {
+    error: HashMap<isize, String>,
 }
 
-pub async fn spec_json() -> Response<Body> {
-    const ENV_OPENAPI_JSON: &str = "MY_BIN_OPENAPI_JSON";
-    const DEFAULT_OPENAPI_SPEC: &str = "openapi.json";
-    
-    let file: Option<String> = {
-        match env::var(ENV_OPENAPI_JSON).is_ok() {
-            true => Some(env::var(ENV_OPENAPI_JSON).unwrap()),
-            _ => None,
+impl ReplyProvider {
+    pub fn from_app_settings(app_settings: &models::AppSettings) -> ReplyProvider {
+        let mut e: HashMap<isize, String> = HashMap::new();
+        for item in &app_settings.error {
+            e.insert(item.code, item.name.clone());
         }
-    };
+        ReplyProvider { error: e }
+    }
 
-    Response::builder()
-    .status(StatusCode::OK)
-    .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-    .body(Body::from(fs::read_to_string(file.unwrap_or(String::from(DEFAULT_OPENAPI_SPEC))).unwrap()))
-    .unwrap()
-}
-
-pub async fn spec_yaml() -> Response<Body> {
-    const ENV_OPENAPI_YAML: &str = "MY_BIN_OPENAPI_YAML";
-    const DEFAULT_OPENAPI_SPEC: &str = "openapi.yaml";
-    
-    let file: Option<String> = {
-        match env::var(ENV_OPENAPI_YAML).is_ok() {
-            true => Some(env::var(ENV_OPENAPI_YAML).unwrap()),
-            _ => None,
+    pub fn get_ok_reply(&self) -> models::Reply {
+        models::Reply {
+            error_code: 0,
+            error_name: None,
         }
-    };
+    }
 
-    Response::builder()
-    .status(StatusCode::OK)
-    .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
-    .header("Access-Control-Allow-Origin", "https://editor.swagger.io")
-    .body(Body::from(fs::read_to_string(file.unwrap_or(String::from(DEFAULT_OPENAPI_SPEC))).unwrap()))
-    .unwrap()
+    pub fn get_ok_add_reply(&self, ids: Vec<i32>) -> models::AddReply {
+        models::AddReply {
+            error_code: 0,
+            error_name: None,
+            ids: Some(ids),
+        }
+    }
+
+    pub fn get_error_reply(&self, error_code: ErrorCode) -> models::Reply {
+        let ec = error_code as isize;
+        models::Reply {
+            error_code: ec,
+            error_name: Some(self.error.get(&ec).unwrap().clone()),
+        }
+    }
+
+    pub fn get_error_add_reply(&self, error_code: ErrorCode) -> models::AddReply {
+        let ec = error_code as isize;
+        models::AddReply {
+            error_code: ec,
+            error_name: Some(self.error.get(&ec).unwrap().clone()),
+            ids: None,
+        }
+    }
 }
 
-pub async fn index() -> Response<Body> {
-    const INDEX: &'static str = r#"
-    <!doctype html>
-    <html>
-    <head>
-    <title>Microservice</title>
-    </head>
-    <body>
-    <h2>Microservice</h2>
-    <p><a href="./openapi.json">openapi.json</a></p> 
-    <p><a href="./openapi.yaml">openapi.yaml</a></p> 
-    </body>
-    </html>
-    "#;
-    Response::builder()
-    .status(StatusCode::OK)
-    .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-    .body(Body::from(INDEX))
-    .unwrap()
+fn get_ids_as_exp(ids: &Vec<i32>) -> String {
+    let mut result: String = String::with_capacity(100);
+    for item in ids {
+        if result.len() != 0 {
+            result.push(',');
+        }
+        result.push_str(&item.to_string());
+    }
+    result
 }
 
-pub async fn signin() -> Response<Body> {
-    resp_with_code(StatusCode::OK)
+fn get_delete_in_exp(table: &str, ids: &Vec<i32>) -> String {
+    format!(
+        "DELETE FROM {} WHERE id IN ({})",
+        table,
+        get_ids_as_exp(ids)
+    )
 }
 
-pub async fn signup() -> Response<Body> {
-    resp_with_code(StatusCode::OK)
+fn get_select_in_exp(table: &str, ids: &Vec<i32>) -> String {
+    format!(
+        "SELECT * FROM {} WHERE id IN ({})",
+        table,
+        get_ids_as_exp(ids)
+    )
 }
 
-pub async fn index3(req: models::Event) -> Response<Body> {
-    resp(&req)
+pub async fn signin(reply_provider: &ReplyProvider) -> models::Reply {
+    reply_provider.get_ok_reply()
 }
 
-pub async fn index4(req: models::Command) -> Response<Body> {
-    if req.name != Some(String::default()) {
-        resp(&req)
+pub async fn signup(reply_provider: &ReplyProvider) -> models::Reply {
+    reply_provider.get_ok_reply()
+}
+
+pub async fn get_subscriptions(ids: Option<Vec<i8>>) -> Vec<models::Subscription> {
+    let mut vec = Vec::<models::Subscription>::new();
+    vec.push(models::Subscription {
+        id: Some(1),
+        object_name: Some("car".to_string()),
+        event_name: Some("ondelete".to_string()),
+        call_back: "http://my.ru".to_string(),
+    });
+    vec
+}
+
+pub async fn subscribe(
+    reply_provider: &ReplyProvider,
+    object_name: &str,
+    event_name: &str,
+    call_back: &str,
+) -> models::Reply {
+    reply_provider.get_ok_reply()
+}
+
+pub async fn unsubscribe(
+    reply_provider: &ReplyProvider,
+    object_name: &str,
+    event_name: &str,
+    call_back: &str,
+) -> models::Reply {
+    reply_provider.get_ok_reply()
+}
+
+pub async fn get_cars(mut pool: &PgPool, ids: Option<Vec<i32>>) -> Vec<models::Car> {
+    if ids.is_none() {
+        sqlx::query_as!(models::Car, r#"SELECT id,car_name FROM public.car"#)
+            .fetch_all(&mut pool)
+            .await
+            .unwrap()
     } else {
-        resp_with_code(StatusCode::BAD_REQUEST)
+        let t = sqlx::query(&get_select_in_exp("public.car", &ids.unwrap()))
+            .fetch_all(&mut pool)
+            .await
+            .unwrap();
+        let mut result = Vec::<models::Car>::new();
+        for item in t {
+            result.push(models::Car {
+                id: item.get(0),
+                car_name: item.get(1),
+            })
+        }
+        result
+    }
+}
+
+pub async fn add_cars2(pool: &PgPool, items: Vec<models::Car>) -> Vec<i32> {
+    let mut vec = Vec::<i32>::new();
+    let mut tx = pool.begin().await.unwrap();
+    for item in items {
+        let rec = sqlx::query!(
+            r#"
+    INSERT INTO public.car ( car_name )
+    VALUES ( $1 )
+    RETURNING id
+            "#,
+            item.car_name
+        )
+        .fetch_one(&mut tx)
+        .await
+        .unwrap();
+        vec.push(rec.id);
+    }
+    tx.commit().await.unwrap();
+    vec
+}
+
+pub async fn add_cars(
+    pool: &PgPool,
+    reply_provider: &ReplyProvider,
+    items: Vec<models::Car>,
+) -> models::AddReply {
+    let mut ids = Vec::<i32>::new();
+    let mut tx = pool.begin().await.unwrap();
+    for item in items {
+        match sqlx::query!(
+            r#"
+    INSERT INTO public.car ( car_name )
+    VALUES ( $1 )
+    RETURNING id
+            "#,
+            item.car_name
+        )
+        .fetch_one(&mut tx)
+        .await
+        {
+            Ok(rec) => ids.push(rec.id),
+            Err(e) => {
+                tx.rollback().await.unwrap();
+                eprintln!("server error: {}", e);
+                return reply_provider.get_error_add_reply(ErrorCode::ReplyErrorDatabase);
+            }
+        };
+    }
+    tx.commit().await.unwrap();
+    reply_provider.get_ok_add_reply(ids)
+}
+
+pub async fn update_cars(
+    pool: &PgPool,
+    reply_provider: &ReplyProvider,
+    items: Vec<models::Car>,
+) -> models::Reply {
+    let mut tx = pool.begin().await.unwrap();
+    let mut count: u64 = 0;
+    for item in &items {
+        match sqlx::query!(
+            r#"UPDATE public.car SET car_name = $1 WHERE id = $2"#,
+            item.car_name,
+            item.id.unwrap()
+        )
+        .execute(&mut tx)
+        .await
+        {
+            Ok(ret) => count += ret,
+            Err(e) => {
+                tx.rollback().await.unwrap();
+                eprintln!("server error: {}", e);
+                return reply_provider.get_error_reply(ErrorCode::ReplyErrorDatabase);
+            }
+        };
+    }
+    if items.len() == usize::try_from(count).unwrap() {
+        tx.commit().await.unwrap();
+        reply_provider.get_ok_reply()
+    } else {
+        tx.rollback().await.unwrap();
+        reply_provider.get_error_reply(ErrorCode::ReplyErrorNotFound)
+    }
+}
+
+pub async fn delete_cars(
+    pool: &PgPool,
+    reply_provider: &ReplyProvider,
+    ids: Vec<i32>,
+) -> models::Reply {
+    let mut tx = pool.begin().await.unwrap();
+    match sqlx::query(&get_delete_in_exp("public.car", &ids))
+        .execute(&mut tx)
+        .await
+    {
+        Ok(ret) => {
+            if ids.len() == usize::try_from(ret).unwrap() {
+                tx.commit().await.unwrap();
+                reply_provider.get_ok_reply()
+            } else {
+                tx.rollback().await.unwrap();
+                reply_provider.get_error_reply(ErrorCode::ReplyErrorNotFound)
+            }
+        }
+        Err(e) => {
+            tx.rollback().await.unwrap();
+            eprintln!("server error: {}", e);
+            reply_provider.get_error_reply(ErrorCode::ReplyErrorDatabase)
+        }
     }
 }

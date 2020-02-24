@@ -7,4 +7,3 @@ applications:
     services: []
     env:
       MY_BIN_HOST: 0.0.0.0
-      MY_BIN_VAR: TEST
