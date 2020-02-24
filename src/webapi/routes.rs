@@ -3,11 +3,11 @@ use base64;
 use bytes::buf::BufExt;
 use hyper::{error::Result, header, Body, Method, Request, Response, StatusCode};
 use serde::ser;
+use sqlx::PgPool;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::sync::{Arc};
-use sqlx::PgPool;
+use std::sync::Arc;
 
 pub const ROUTE_SIGHN_IN: &str = "/api/signin";
 pub const ROUTE_SIGHN_UP: &str = "/api/signup";
@@ -39,7 +39,7 @@ pub async fn service_route(
     req: Request<Body>,
     pool: Arc<PgPool>,
     access_checker: Arc<AccessChecker>,
-    reply_provider: Arc<handlers::ReplyProvider>
+    reply_provider: Arc<handlers::ReplyProvider>,
 ) -> Result<Response<Body>> {
     let (parts, body) = req.into_parts();
     let reader = hyper::body::aggregate(body).await?.reader();
@@ -64,38 +64,74 @@ pub async fn service_route(
                 .unwrap());
         }
         Ok(match parts.uri.path() {
-            ROUTE_SIGHN_IN => resp(&handlers::signin(&reply_provider).await),
-            ROUTE_SIGHN_UP => resp(&handlers::signup(&reply_provider).await),
-            ROUTE_SUBSCRIPTION_ITEMS => resp(&handlers::get_subscriptions(None).await),
-            ROUTE_SUBSCRIPTION_GET => resp(
-                &handlers::get_subscriptions(serde_json::from_reader(reader).unwrap()).await,
-            ),
+            ROUTE_SIGHN_IN => resp(handlers::signin(&reply_provider).await),
+            ROUTE_SIGHN_UP => resp(handlers::signup(&reply_provider).await),
+            ROUTE_SUBSCRIPTION_ITEMS => resp(handlers::get_subscriptions(None).await),
+            ROUTE_SUBSCRIPTION_GET => {
+                resp(handlers::get_subscriptions(serde_json::from_reader(reader).unwrap()).await)
+            }
             ROUTE_CAR_ON_DELETE_SUBSCRIBE => {
                 let subscription: models::Subscription = serde_json::from_reader(reader).unwrap();
                 resp(
-                    &handlers::subscribe(&reply_provider, "car", "ondelete", &subscription.call_back.to_string())
-                        .await,
+                    handlers::subscribe(
+                        &reply_provider,
+                        "car",
+                        "ondelete",
+                        &subscription.call_back.to_string(),
+                    )
+                    .await,
                 )
             }
             ROUTE_CAR_ON_DELETE_UNSUBSCRIBE => {
                 let subscription: models::Subscription = serde_json::from_reader(reader).unwrap();
                 resp(
-                    &handlers::unsubscribe(&reply_provider, "car", "ondelete", &subscription.call_back.to_string())
-                        .await,
+                    handlers::unsubscribe(
+                        &reply_provider,
+                        "car",
+                        "ondelete",
+                        &subscription.call_back.to_string(),
+                    )
+                    .await,
                 )
             }
-            ROUTE_CAR_ITEMS => resp(&handlers::get_cars(&pool, None).await),
+            ROUTE_CAR_ITEMS => resp(handlers::get_cars(&pool, None).await),
             ROUTE_CAR_GET => {
-                resp(&handlers::get_cars(&pool, serde_json::from_reader(reader).unwrap()).await)
+                let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
+                if !ids.is_none() {
+                    resp(handlers::get_cars(&pool, ids).await)
+                } else {
+                    eprintln!("get_cars handler error: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
             }
             ROUTE_CAR_ADD => {
-                resp(&handlers::add_cars(&pool, &reply_provider, serde_json::from_reader(reader).unwrap()).await)
+                let items: Option<Vec<models::Car>> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if !items.is_none() {
+                    resp(handlers::add_cars(&pool, &reply_provider, items.unwrap()).await)
+                } else {
+                    eprintln!("add_cars handler error: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
             }
             ROUTE_CAR_UPDATE => {
-                resp(&handlers::update_cars(&pool, &reply_provider, serde_json::from_reader(reader).unwrap()).await)
+                let items: Option<Vec<models::Car>> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if !items.is_none() {
+                    resp(handlers::update_cars(&pool, &reply_provider, items.unwrap()).await)
+                } else {
+                    eprintln!("update_cars handler error: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
             }
             ROUTE_CAR_DELETE => {
-                resp(&handlers::delete_cars(&pool, &reply_provider, serde_json::from_reader(reader).unwrap()).await)
+                let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
+                if !ids.is_none() {
+                    resp(handlers::delete_cars(&pool, &reply_provider, ids.unwrap()).await)
+                } else {
+                    eprintln!("delete_cars handler error: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
             }
             _ => return Ok(resp_with_code(StatusCode::NOT_FOUND)),
         })
@@ -141,14 +177,18 @@ impl AccessChecker {
     }
 }
 
-fn resp<T>(res: &T) -> Response<Body>
+fn resp<T>(res: Option<T>) -> Response<Body>
 where
     T: ser::Serialize,
 {
-    Response::builder()
-        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-        .body(Body::from(serde_json::to_string(&res).unwrap()))
-        .unwrap()
+    if !res.is_none() {
+        Response::builder()
+            .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+            .body(Body::from(serde_json::to_string(&res).unwrap()))
+            .unwrap()
+    } else {
+        resp_with_code(StatusCode::INTERNAL_SERVER_ERROR)
+    }
 }
 
 fn resp_with_code(status: StatusCode) -> Response<Body> {

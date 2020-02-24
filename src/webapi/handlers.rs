@@ -5,8 +5,7 @@ use std::convert::TryFrom;
 use super::models;
 
 pub enum ErrorCode {
-    ReplyErrorInternal = -1,
-    ReplyErrorDatabase = -2,
+    ReplyErrorDatabase = -1,
     ReplyErrorNotFound = -100,
 }
 
@@ -23,36 +22,36 @@ impl ReplyProvider {
         ReplyProvider { error: e }
     }
 
-    pub fn get_ok_reply(&self) -> models::Reply {
-        models::Reply {
+    pub fn get_ok_reply(&self) -> Option<models::Reply> {
+        Some(models::Reply {
             error_code: 0,
             error_name: None,
-        }
+        })
     }
 
-    pub fn get_ok_add_reply(&self, ids: Vec<i32>) -> models::AddReply {
-        models::AddReply {
+    pub fn get_ok_add_reply(&self, ids: Vec<i32>) -> Option<models::AddReply> {
+        Some(models::AddReply {
             error_code: 0,
             error_name: None,
             ids: Some(ids),
-        }
+        })
     }
 
-    pub fn get_error_reply(&self, error_code: ErrorCode) -> models::Reply {
+    pub fn get_error_reply(&self, error_code: ErrorCode) -> Option<models::Reply> {
         let ec = error_code as isize;
-        models::Reply {
+        Some(models::Reply {
             error_code: ec,
             error_name: Some(self.error.get(&ec).unwrap().clone()),
-        }
+        })
     }
 
-    pub fn get_error_add_reply(&self, error_code: ErrorCode) -> models::AddReply {
+    pub fn get_error_add_reply(&self, error_code: ErrorCode) -> Option<models::AddReply> {
         let ec = error_code as isize;
-        models::AddReply {
+        Some(models::AddReply {
             error_code: ec,
             error_name: Some(self.error.get(&ec).unwrap().clone()),
             ids: None,
-        }
+        })
     }
 }
 
@@ -83,23 +82,23 @@ fn get_select_in_exp(table: &str, ids: &Vec<i32>) -> String {
     )
 }
 
-pub async fn signin(reply_provider: &ReplyProvider) -> models::Reply {
+pub async fn signin(reply_provider: &ReplyProvider) -> Option<models::Reply> {
     reply_provider.get_ok_reply()
 }
 
-pub async fn signup(reply_provider: &ReplyProvider) -> models::Reply {
+pub async fn signup(reply_provider: &ReplyProvider) -> Option<models::Reply> {
     reply_provider.get_ok_reply()
 }
 
-pub async fn get_subscriptions(ids: Option<Vec<i8>>) -> Vec<models::Subscription> {
-    let mut vec = Vec::<models::Subscription>::new();
-    vec.push(models::Subscription {
+pub async fn get_subscriptions(ids: Option<Vec<i8>>) -> Option<Vec<models::Subscription>> {
+    let mut items = Vec::<models::Subscription>::new();
+    items.push(models::Subscription {
         id: Some(1),
         object_name: Some("car".to_string()),
         event_name: Some("ondelete".to_string()),
         call_back: "http://my.ru".to_string(),
     });
-    vec
+    Some(items)
 }
 
 pub async fn subscribe(
@@ -107,7 +106,7 @@ pub async fn subscribe(
     object_name: &str,
     event_name: &str,
     call_back: &str,
-) -> models::Reply {
+) -> Option<models::Reply> {
     reply_provider.get_ok_reply()
 }
 
@@ -116,67 +115,60 @@ pub async fn unsubscribe(
     object_name: &str,
     event_name: &str,
     call_back: &str,
-) -> models::Reply {
+) -> Option<models::Reply> {
     reply_provider.get_ok_reply()
 }
 
-pub async fn get_cars(mut pool: &PgPool, ids: Option<Vec<i32>>) -> Vec<models::Car> {
+pub async fn get_cars(mut pool: &PgPool, ids: Option<Vec<i32>>) -> Option<Vec<models::Car>> {
     if ids.is_none() {
-        sqlx::query_as!(models::Car, r#"SELECT id,car_name FROM public.car"#)
+        match sqlx::query_as!(models::Car, r#"SELECT id,car_name FROM public.car"#)
             .fetch_all(&mut pool)
             .await
-            .unwrap()
+        {
+            Ok(items) => Some(items),
+            Err(e) => {
+                eprintln!("get_cars handler error: {}", e);
+                None
+            }
+        }
     } else {
-        let t = sqlx::query(&get_select_in_exp("public.car", &ids.unwrap()))
+        let items = match sqlx::query(&get_select_in_exp("public.car", &ids.unwrap()))
             .fetch_all(&mut pool)
             .await
-            .unwrap();
+        {
+            Ok(items) => items,
+            Err(e) => {
+                eprintln!("get_cars handler error: {}", e);
+                return None;
+            }
+        };
         let mut result = Vec::<models::Car>::new();
-        for item in t {
+        for item in items {
             result.push(models::Car {
                 id: item.get(0),
                 car_name: item.get(1),
             })
         }
-        result
+        Some(result)
     }
-}
-
-pub async fn add_cars2(pool: &PgPool, items: Vec<models::Car>) -> Vec<i32> {
-    let mut vec = Vec::<i32>::new();
-    let mut tx = pool.begin().await.unwrap();
-    for item in items {
-        let rec = sqlx::query!(
-            r#"
-    INSERT INTO public.car ( car_name )
-    VALUES ( $1 )
-    RETURNING id
-            "#,
-            item.car_name
-        )
-        .fetch_one(&mut tx)
-        .await
-        .unwrap();
-        vec.push(rec.id);
-    }
-    tx.commit().await.unwrap();
-    vec
 }
 
 pub async fn add_cars(
     pool: &PgPool,
     reply_provider: &ReplyProvider,
     items: Vec<models::Car>,
-) -> models::AddReply {
+) -> Option<models::AddReply> {
     let mut ids = Vec::<i32>::new();
-    let mut tx = pool.begin().await.unwrap();
+    let mut tx = match pool.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            eprintln!("add_cars handler error: {}", e);
+            return None;
+        }
+    };
     for item in items {
         match sqlx::query!(
-            r#"
-    INSERT INTO public.car ( car_name )
-    VALUES ( $1 )
-    RETURNING id
-            "#,
+            r#"INSERT INTO public.car ( car_name ) VALUES ( $1 ) RETURNING id"#,
             item.car_name
         )
         .fetch_one(&mut tx)
@@ -185,12 +177,18 @@ pub async fn add_cars(
             Ok(rec) => ids.push(rec.id),
             Err(e) => {
                 tx.rollback().await.unwrap();
-                eprintln!("server error: {}", e);
+                eprintln!("add_cars handler error: {}", e);
                 return reply_provider.get_error_add_reply(ErrorCode::ReplyErrorDatabase);
             }
         };
     }
-    tx.commit().await.unwrap();
+    match tx.commit().await {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("add_cars handler error: {}", e);
+            return reply_provider.get_error_add_reply(ErrorCode::ReplyErrorDatabase);
+        }
+    }
     reply_provider.get_ok_add_reply(ids)
 }
 
@@ -198,8 +196,14 @@ pub async fn update_cars(
     pool: &PgPool,
     reply_provider: &ReplyProvider,
     items: Vec<models::Car>,
-) -> models::Reply {
-    let mut tx = pool.begin().await.unwrap();
+) -> Option<models::Reply> {
+    let mut tx = match pool.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            eprintln!("update_cars handler error: {}", e);
+            return None;
+        }
+    };
     let mut count: u64 = 0;
     for item in &items {
         match sqlx::query!(
@@ -212,17 +216,35 @@ pub async fn update_cars(
         {
             Ok(ret) => count += ret,
             Err(e) => {
-                tx.rollback().await.unwrap();
-                eprintln!("server error: {}", e);
+                eprintln!("update_cars handler error: {}", e);
+                match tx.rollback().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("update_cars handler error: {}", e);
+                        return None;
+                    }
+                };
                 return reply_provider.get_error_reply(ErrorCode::ReplyErrorDatabase);
             }
         };
     }
     if items.len() == usize::try_from(count).unwrap() {
-        tx.commit().await.unwrap();
+        match tx.commit().await {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("update_cars handler error: {}", e);
+                return reply_provider.get_error_reply(ErrorCode::ReplyErrorDatabase);
+            }
+        }
         reply_provider.get_ok_reply()
     } else {
-        tx.rollback().await.unwrap();
+        match tx.rollback().await {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("update_cars handler error: {}", e);
+                return None;
+            }
+        };
         reply_provider.get_error_reply(ErrorCode::ReplyErrorNotFound)
     }
 }
@@ -231,24 +253,48 @@ pub async fn delete_cars(
     pool: &PgPool,
     reply_provider: &ReplyProvider,
     ids: Vec<i32>,
-) -> models::Reply {
-    let mut tx = pool.begin().await.unwrap();
+) -> Option<models::Reply> {
+    let mut tx = match pool.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            eprintln!("delete_cars handler error: {}", e);
+            return None;
+        }
+    };
     match sqlx::query(&get_delete_in_exp("public.car", &ids))
         .execute(&mut tx)
         .await
     {
         Ok(ret) => {
             if ids.len() == usize::try_from(ret).unwrap() {
-                tx.commit().await.unwrap();
+                match tx.commit().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("delete_cars handler error: {}", e);
+                        return reply_provider.get_error_reply(ErrorCode::ReplyErrorDatabase);
+                    }
+                }
                 reply_provider.get_ok_reply()
             } else {
-                tx.rollback().await.unwrap();
+                match tx.rollback().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("delete_cars handler error: {}", e);
+                        return None;
+                    }
+                };
                 reply_provider.get_error_reply(ErrorCode::ReplyErrorNotFound)
             }
         }
         Err(e) => {
-            tx.rollback().await.unwrap();
-            eprintln!("server error: {}", e);
+            eprintln!("delete_cars handler error: {}", e);
+            match tx.rollback().await {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("delete_cars handler error: {}", e);
+                    return None;
+                }
+            };
             reply_provider.get_error_reply(ErrorCode::ReplyErrorDatabase)
         }
     }
