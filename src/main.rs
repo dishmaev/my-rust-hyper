@@ -7,9 +7,7 @@ use std::env;
 use std::fs;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use webapi::{handlers, models, routes};
-
-use sqlx::PgPool;
+use webapi::{collections, models, routes};
 
 #[tokio::main]
 async fn main() {
@@ -51,22 +49,22 @@ async fn main() {
     let app_settings: models::AppSettings =
         serde_json::from_str(&fs::read_to_string(file).unwrap()).unwrap();
 
-    let pool = PgPool::new(&app_settings.connection_string).await.unwrap();
-    let pool_arc = Arc::new(pool);
+    let entity_framework = collections::EntityFramework::new(app_settings.connection_string)
+        .await
+        .expect("error while initialize entity framework");
+    let access_checker = routes::AccessChecker::from_entity_framework(&entity_framework)
+        .await
+        .expect("error while initialize access checker");
 
-    let access_checker = routes::AccessChecker::from_app_settings(&app_settings);
+    let entity_framework_arc = Arc::new(entity_framework);
     let access_checker_arc = Arc::new(access_checker);
 
-    let reply_provider = handlers::ReplyProvider::from_app_settings(&app_settings);
-    let error_provider_arc = Arc::new(reply_provider);
-
     let make_svc = make_service_fn(move |_| {
-        let pl = pool_arc.clone();
+        let ef = entity_framework_arc.clone();
         let ac = access_checker_arc.clone();
-        let rp = error_provider_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                routes::service_route(req, pl.clone(), ac.clone(), rp.clone())
+                routes::service_route(req, ef.clone(), ac.clone())
             }))
         }
     });

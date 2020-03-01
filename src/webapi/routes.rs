@@ -1,9 +1,8 @@
-use super::{handlers, models};
+use super::{collections, handlers, models};
 use base64;
 use bytes::buf::BufExt;
 use hyper::{error::Result, header, Body, Method, Request, Response, StatusCode};
 use serde::ser;
-use sqlx::PgPool;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -37,9 +36,8 @@ pub const ROUTES: [&str; 7] = [
 
 pub async fn service_route(
     req: Request<Body>,
-    pool: Arc<PgPool>,
-    access_checker: Arc<AccessChecker>,
-    reply_provider: Arc<handlers::ReplyProvider>,
+    db: Arc<collections::EntityFramework>,
+    ac: Arc<AccessChecker>,
 ) -> Result<Response<Body>> {
     let (parts, body) = req.into_parts();
     let reader = hyper::body::aggregate(body).await?.reader();
@@ -47,7 +45,7 @@ pub async fn service_route(
     if parts.method == Method::POST {
         let mut is_authorized = false;
         if !parts.headers.get("Authorization").is_none() {
-            is_authorized = access_checker.is_authorized(
+            is_authorized = ac.is_authorized(
                 parts
                     .headers
                     .get("Authorization")
@@ -64,17 +62,17 @@ pub async fn service_route(
                 .unwrap());
         }
         Ok(match parts.uri.path() {
-            ROUTE_SIGHN_IN => resp(handlers::signin(&reply_provider).await),
-            ROUTE_SIGHN_UP => resp(handlers::signup(&reply_provider).await),
-            ROUTE_SUBSCRIPTION_ITEMS => resp(handlers::get_subscriptions(None).await),
-            ROUTE_SUBSCRIPTION_GET => {
-                resp(handlers::get_subscriptions(serde_json::from_reader(reader).unwrap()).await)
-            }
+            ROUTE_SIGHN_IN => resp(handlers::signin().await),
+            ROUTE_SIGHN_UP => resp(handlers::signup().await),
+            ROUTE_SUBSCRIPTION_ITEMS => resp(handlers::get_subscriptions(&db, None).await),
+            ROUTE_SUBSCRIPTION_GET => resp(
+                handlers::get_subscriptions(&db, serde_json::from_reader(reader).unwrap()).await,
+            ),
             ROUTE_CAR_ON_DELETE_SUBSCRIBE => {
                 let subscription: models::Subscription = serde_json::from_reader(reader).unwrap();
                 resp(
                     handlers::subscribe(
-                        &reply_provider,
+                        &db,
                         "car",
                         "ondelete",
                         &subscription.call_back.to_string(),
@@ -86,7 +84,7 @@ pub async fn service_route(
                 let subscription: models::Subscription = serde_json::from_reader(reader).unwrap();
                 resp(
                     handlers::unsubscribe(
-                        &reply_provider,
+                        &db,
                         "car",
                         "ondelete",
                         &subscription.call_back.to_string(),
@@ -94,11 +92,11 @@ pub async fn service_route(
                     .await,
                 )
             }
-            ROUTE_CAR_ITEMS => resp(handlers::get_cars(&pool, None).await),
+            ROUTE_CAR_ITEMS => resp(handlers::get_cars(&db, None).await),
             ROUTE_CAR_GET => {
                 let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
                 if !ids.is_none() {
-                    resp(handlers::get_cars(&pool, ids).await)
+                    resp(handlers::get_cars(&db, ids).await)
                 } else {
                     eprintln!("get_cars handler error: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
@@ -108,7 +106,7 @@ pub async fn service_route(
                 let items: Option<Vec<models::Car>> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if !items.is_none() {
-                    resp(handlers::add_cars(&pool, &reply_provider, items.unwrap()).await)
+                    resp(handlers::add_cars(&db, items.unwrap()).await)
                 } else {
                     eprintln!("add_cars handler error: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
@@ -118,7 +116,7 @@ pub async fn service_route(
                 let items: Option<Vec<models::Car>> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if !items.is_none() {
-                    resp(handlers::update_cars(&pool, &reply_provider, items.unwrap()).await)
+                    resp(handlers::update_cars(&db, items.unwrap()).await)
                 } else {
                     eprintln!("update_cars handler error: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
@@ -127,7 +125,7 @@ pub async fn service_route(
             ROUTE_CAR_DELETE => {
                 let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
                 if !ids.is_none() {
-                    resp(handlers::delete_cars(&pool, &reply_provider, ids.unwrap()).await)
+                    resp(handlers::delete_cars(&db, ids.unwrap()).await)
                 } else {
                     eprintln!("delete_cars handler error: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
@@ -159,17 +157,32 @@ pub struct AccessChecker {
 }
 
 impl AccessChecker {
-    pub fn from_app_settings(app_settings: &models::AppSettings) -> AccessChecker {
-        let mut book_reviews: HashMap<String, String> = HashMap::new();
+    pub fn _from_app_settings(app_settings: &models::AppSettings) -> AccessChecker {
+        let mut authorization: HashMap<String, String> = HashMap::new();
         for item in &app_settings.authentication {
-            book_reviews.insert(
-                get_basic_authorization(&item.user, &item.password),
-                item.user.clone(),
+            authorization.insert(
+                get_basic_authorization(&item.0, &item.1),
+                item.1.to_string(),
             );
         }
         AccessChecker {
-            user_authorization: book_reviews,
+            user_authorization: authorization,
         }
+    }
+
+    pub async fn from_entity_framework(ef: &collections::EntityFramework) -> collections::Result<AccessChecker> {
+        let items = ef.usr.get(&ef.provider, None).await?;
+        let mut authorization: HashMap<String, String> = HashMap::new();
+        for item in items {
+            authorization.insert(
+                get_basic_authorization(&item.usr_name, &item.usr_password),
+                item.usr_name,
+            );
+        }
+        Ok(
+        AccessChecker {
+            user_authorization: authorization,
+        })
     }
 
     pub fn is_authorized(&self, header: &str) -> bool {
@@ -177,17 +190,19 @@ impl AccessChecker {
     }
 }
 
-fn resp<T>(res: Option<T>) -> Response<Body>
+fn resp<T>(res: collections::Result<T>) -> Response<Body>
 where
     T: ser::Serialize,
 {
-    if !res.is_none() {
-        Response::builder()
+    match res {
+        Ok(items) => Response::builder()
             .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-            .body(Body::from(serde_json::to_string(&res).unwrap()))
-            .unwrap()
-    } else {
-        resp_with_code(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from(serde_json::to_string(&items).unwrap()))
+            .unwrap(),
+        Err(e) => {
+            eprintln!("handler error: {}", e);
+            resp_with_code(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
