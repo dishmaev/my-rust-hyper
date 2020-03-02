@@ -23,6 +23,8 @@ const ROUTE_CAR_ADD: &str = "/car/add";
 const ROUTE_CAR_UPDATE: &str = "/car/update";
 const ROUTE_CAR_DELETE: &str = "/car/delete";
 
+const ROUTE_USR_ITEMS: &str = "/usrs";
+
 #[cfg(test)]
 pub const ROUTES: [&str; 7] = [
     ROUTE_SIGHN_IN,
@@ -36,7 +38,7 @@ pub const ROUTES: [&str; 7] = [
 
 pub async fn service_route(
     req: Request<Body>,
-    db: Arc<collections::EntityFramework>,
+    db: Arc<collections::DataConnector>,
     ac: Arc<AccessChecker>,
 ) -> Result<Response<Body>> {
     let (parts, body) = req.into_parts();
@@ -92,6 +94,7 @@ pub async fn service_route(
                     .await,
                 )
             }
+            ROUTE_USR_ITEMS => resp(handlers::get_usrs(&db, None).await),
             ROUTE_CAR_ITEMS => resp(handlers::get_cars(&db, None).await),
             ROUTE_CAR_GET => {
                 let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
@@ -170,8 +173,10 @@ impl AccessChecker {
         }
     }
 
-    pub async fn from_entity_framework(ef: &collections::EntityFramework) -> collections::Result<AccessChecker> {
-        let items = ef.usr.get(&ef.provider, None).await?;
+    pub async fn from_data_connector(
+        dc: &collections::DataConnector,
+    ) -> collections::Result<AccessChecker> {
+        let items = dc.usr.get(None).await?;
         let mut authorization: HashMap<String, String> = HashMap::new();
         for item in items {
             authorization.insert(
@@ -179,8 +184,7 @@ impl AccessChecker {
                 item.usr_name,
             );
         }
-        Ok(
-        AccessChecker {
+        Ok(AccessChecker {
             user_authorization: authorization,
         })
     }

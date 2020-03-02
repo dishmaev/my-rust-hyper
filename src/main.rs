@@ -49,22 +49,22 @@ async fn main() {
     let app_settings: models::AppSettings =
         serde_json::from_str(&fs::read_to_string(file).unwrap()).unwrap();
 
-    let entity_framework = collections::EntityFramework::new(app_settings.connection_string)
+    let data_connector = collections::DataConnector::new(app_settings.pgDb)
         .await
-        .expect("error while initialize entity framework");
-    let access_checker = routes::AccessChecker::from_entity_framework(&entity_framework)
+        .expect("error while initialize data connector");
+    let access_checker = routes::AccessChecker::from_data_connector(&data_connector)
         .await
         .expect("error while initialize access checker");
 
-    let entity_framework_arc = Arc::new(entity_framework);
+    let data_connector_arc = Arc::new(data_connector);
     let access_checker_arc = Arc::new(access_checker);
 
     let make_svc = make_service_fn(move |_| {
-        let ef = entity_framework_arc.clone();
+        let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                routes::service_route(req, ef.clone(), ac.clone())
+                routes::service_route(req, dc.clone(), ac.clone())
             }))
         }
     });

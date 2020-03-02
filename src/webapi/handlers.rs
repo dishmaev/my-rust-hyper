@@ -15,54 +15,67 @@ pub async fn signup() -> collections::Result<collections::Reply> {
 }
 
 pub async fn get_subscriptions(
-    ef: &collections::EntityFramework,
+    dc: &collections::DataConnector,
     ids: Option<Vec<i32>>,
 ) -> collections::Result<Vec<models::Subscription>> {
-    Ok(ef.subscription_collection.get(&ef.provider, ids).await?)
+    Ok(dc.subscription.get(ids).await?)
 }
 
 pub async fn subscribe(
-    ef: &collections::EntityFramework,
+    dc: &collections::DataConnector,
     object_name: &str,
     event_name: &str,
     call_back: &str,
 ) -> collections::Result<collections::Reply> {
-    Ok(ef.subscription_collection.subscribe(&ef.provider, object_name, event_name, call_back).await?)
+    Ok(dc
+        .subscription
+        .subscribe(object_name, event_name, call_back)
+        .await?)
 }
 
 pub async fn unsubscribe(
-    ef: &collections::EntityFramework,
+    dc: &collections::DataConnector,
     object_name: &str,
     event_name: &str,
     call_back: &str,
 ) -> collections::Result<collections::Reply> {
-    Ok(ef.subscription_collection.unsubscribe(&ef.provider, object_name, event_name, call_back).await?)
+    Ok(dc
+        .subscription
+        .unsubscribe(object_name, event_name, call_back)
+        .await?)
+}
+
+pub async fn get_usrs(
+    dc: &collections::DataConnector,
+    ids: Option<Vec<i32>>,
+) -> collections::Result<Vec<models::Usr>> {
+    Ok(dc.usr.get(ids).await?)
 }
 
 pub async fn get_cars(
-    ef: &collections::EntityFramework,
+    dc: &collections::DataConnector,
     ids: Option<Vec<i32>>,
 ) -> collections::Result<Vec<models::Car>> {
-    Ok(ef.car_collection.get(&ef.provider, ids).await?)
+    Ok(dc.car.get(ids).await?)
 }
 
 pub async fn add_cars(
-    ef: &collections::EntityFramework,
+    dc: &collections::DataConnector,
     items: Vec<models::Car>,
 ) -> collections::Result<collections::AddReply> {
-    Ok(ef.car_collection.add(&ef.provider, items).await?)
+    Ok(dc.car.add(items).await?)
 }
 
 pub async fn update_cars(
-    ef: &collections::EntityFramework,
+    dc: &collections::DataConnector,
     items: Vec<models::Car>,
 ) -> collections::Result<collections::Reply> {
-    Ok(ef.car_collection.update(&ef.provider, items).await?)
+    Ok(dc.car.update(items).await?)
 }
 
 pub async fn delete_cars(
-    ef: &collections::EntityFramework,
+    dc: &collections::DataConnector,
     ids: Vec<i32>,
 ) -> collections::Result<collections::Reply> {
-    Ok(ef.car_collection.delete(&ef.provider, ids).await?)
+    Ok(dc.car.delete(ids).await?)
 }

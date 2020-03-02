@@ -62,37 +62,35 @@ impl ExpHelper {
     }
 }
 
-pub struct EntityFramework {
-    pub provider: DataProvider,
+pub struct DataConnector {
     pub error: ErrorCollection,
     pub usr: UsrCollection,
-    pub car_collection: CarCollection,
-    pub subscription_collection: SubscriptionCollection,
+    pub car: CarCollection,
+    pub subscription: SubscriptionCollection,
 }
 
-impl EntityFramework {
-    pub async fn new(connection_string: String) -> Result<EntityFramework> {
+impl DataConnector {
+    pub async fn new(pgDb: models::PgDb) -> Result<DataConnector> {
         let exp_helper: &'static ExpHelper = &ExpHelper::new();
-        let dp = DataProvider::new(connection_string).await?;
-        Ok(EntityFramework {
-            provider: dp,
-            error: ErrorCollection::new(&exp_helper),
-            usr: UsrCollection::new(&exp_helper),
-            car_collection: CarCollection::new(&exp_helper),
-            subscription_collection: SubscriptionCollection::new(&exp_helper),
+        let dp_arc = Arc::new(PgDbProvider::new(pgDb.connection_string).await?);
+        Ok(DataConnector {
+            error: ErrorCollection::new(dp_arc.clone(), &exp_helper),
+            usr: UsrCollection::new(dp_arc.clone(), &exp_helper),
+            car: CarCollection::new(dp_arc.clone(), &exp_helper),
+            subscription: SubscriptionCollection::new(dp_arc.clone(), &exp_helper),
         })
     }
 }
 
-pub struct DataProvider {
+pub struct PgDbProvider {
     pub pool: Arc<PgPool>,
     pub error: HashMap<isize, String>,
 }
 
-impl DataProvider {
-    pub async fn new(connection_string: String) -> Result<DataProvider> {
+impl PgDbProvider {
+    pub async fn new(connection_string: String) -> Result<PgDbProvider> {
         let mut pool = PgPool::new(&connection_string).await.unwrap();
-        let error_items = sqlx::query_as!(models::Error, r#"SELECT id,error_name FROM public.error"#)
+        let error_items = sqlx::query_as!(models::Error, r#"SELECT id,error_name FROM rust.error"#)
             .fetch_all(&mut pool)
             .await
             .unwrap_or(Vec::<models::Error>::new());
@@ -100,7 +98,7 @@ impl DataProvider {
         for item in error_items {
             error.insert(item.id as isize, item.error_name);
         }
-        Ok(DataProvider {
+        Ok(PgDbProvider {
             pool: Arc::new(pool),
             error: error,
         })
@@ -108,32 +106,31 @@ impl DataProvider {
 }
 
 pub struct UsrCollection {
+    data_provider: Arc<PgDbProvider>,
     exp_helper: &'static ExpHelper,
 }
 
 impl UsrCollection {
-    pub fn new(helper: &'static ExpHelper) -> UsrCollection {
+    pub fn new(data_provider: Arc<PgDbProvider>, helper: &'static ExpHelper) -> UsrCollection {
         UsrCollection {
+            data_provider: data_provider,
             exp_helper: &helper,
         }
     }
 
-    pub async fn get(&self, dp: &DataProvider, ids: Option<Vec<i32>>) -> Result<Vec<models::Usr>> {
-        let mut pool: &PgPool = &dp.pool;
+    pub async fn get(&self, ids: Option<Vec<i32>>) -> Result<Vec<models::Usr>> {
+        let mut pool: &PgPool = &self.data_provider.pool;
         if ids.is_none() {
-            Ok(
-                sqlx::query_as!(models::Usr, r#"SELECT id,usr_name,usr_password FROM public.usr"#)
-                    .fetch_all(&mut pool)
-                    .await?,
-            )
-        } else {
-            let items = sqlx::query(
-                &self
-                    .exp_helper
-                    .get_select_in_exp("public.usr", &ids.unwrap()),
+            Ok(sqlx::query_as!(
+                models::Usr,
+                r#"SELECT id,usr_name,usr_password FROM rust.usr"#
             )
             .fetch_all(&mut pool)
-            .await?;
+            .await?)
+        } else {
+            let items = sqlx::query(&self.exp_helper.get_select_in_exp("rust.usr", &ids.unwrap()))
+                .fetch_all(&mut pool)
+                .await?;
             let mut result = Vec::<models::Usr>::new();
             for item in items {
                 result.push(models::Usr {
@@ -148,21 +145,23 @@ impl UsrCollection {
 }
 
 pub struct ErrorCollection {
+    _data_provider: Arc<PgDbProvider>,
     _exp_helper: &'static ExpHelper,
 }
 
 impl ErrorCollection {
-    pub fn new(helper: &'static ExpHelper) -> ErrorCollection {
+    pub fn new(data_provider: Arc<PgDbProvider>, helper: &'static ExpHelper) -> ErrorCollection {
         ErrorCollection {
+            _data_provider: data_provider,
             _exp_helper: &helper,
         }
     }
 
-    pub async fn _get(&self, dp: &DataProvider, ids: Option<Vec<i32>>) -> Result<Vec<models::Error>> {
-        let mut pool: &PgPool = &dp.pool;
+    pub async fn _get(&self, ids: Option<Vec<i32>>) -> Result<Vec<models::Error>> {
+        let mut pool: &PgPool = &self._data_provider.pool;
         if ids.is_none() {
             Ok(
-                sqlx::query_as!(models::Error, r#"SELECT id,error_name FROM public.error"#)
+                sqlx::query_as!(models::Error, r#"SELECT id,error_name FROM rust.error"#)
                     .fetch_all(&mut pool)
                     .await?,
             )
@@ -170,7 +169,7 @@ impl ErrorCollection {
             let items = sqlx::query(
                 &self
                     ._exp_helper
-                    .get_select_in_exp("public.error", &ids.unwrap()),
+                    .get_select_in_exp("rust.error", &ids.unwrap()),
             )
             .fetch_all(&mut pool)
             .await?;
@@ -187,32 +186,30 @@ impl ErrorCollection {
 }
 
 pub struct CarCollection {
+    data_provider: Arc<PgDbProvider>,
     exp_helper: &'static ExpHelper,
 }
 
 impl CarCollection {
-    pub fn new(helper: &'static ExpHelper) -> CarCollection {
+    pub fn new(data_provider: Arc<PgDbProvider>, helper: &'static ExpHelper) -> CarCollection {
         CarCollection {
+            data_provider: data_provider,
             exp_helper: &helper,
         }
     }
 
-    pub async fn get(&self, dp: &DataProvider, ids: Option<Vec<i32>>) -> Result<Vec<models::Car>> {
-        let mut pool: &PgPool = &dp.pool;
+    pub async fn get(&self, ids: Option<Vec<i32>>) -> Result<Vec<models::Car>> {
+        let mut pool: &PgPool = &self.data_provider.pool;
         if ids.is_none() {
             Ok(
-                sqlx::query_as!(models::Car, r#"SELECT id,car_name FROM public.car"#)
+                sqlx::query_as!(models::Car, r#"SELECT id,car_name FROM rust.car"#)
                     .fetch_all(&mut pool)
                     .await?,
             )
         } else {
-            let items = sqlx::query(
-                &self
-                    .exp_helper
-                    .get_select_in_exp("public.car", &ids.unwrap()),
-            )
-            .fetch_all(&mut pool)
-            .await?;
+            let items = sqlx::query(&self.exp_helper.get_select_in_exp("rust.car", &ids.unwrap()))
+                .fetch_all(&mut pool)
+                .await?;
             let mut result = Vec::<models::Car>::new();
             for item in items {
                 result.push(models::Car {
@@ -224,13 +221,13 @@ impl CarCollection {
         }
     }
 
-    pub async fn add(&self, dp: &DataProvider, items: Vec<models::Car>) -> Result<AddReply> {
+    pub async fn add(&self, items: Vec<models::Car>) -> Result<AddReply> {
         let mut ids = Vec::<i32>::new();
-        let pool: &PgPool = &dp.pool;
+        let pool: &PgPool = &self.data_provider.pool;
         let mut tx = pool.begin().await?;
         for item in items {
             match sqlx::query!(
-                r#"INSERT INTO public.car ( car_name ) VALUES ( $1 ) RETURNING id"#,
+                r#"INSERT INTO rust.car ( car_name ) VALUES ( $1 ) RETURNING id"#,
                 item.car_name
             )
             .fetch_one(&mut tx)
@@ -242,7 +239,7 @@ impl CarCollection {
                     println!("add_cars db insert error: {}", e);
                     return Ok(get_error_add_reply!(
                         errors::ErrorCode::ReplyErrorDatabase,
-                        dp.error
+                        self.data_provider.error
                     ));
                 }
             };
@@ -253,20 +250,20 @@ impl CarCollection {
                 println!("add_cars db commit error: {}", e);
                 return Ok(get_error_add_reply!(
                     errors::ErrorCode::ReplyErrorDatabase,
-                    dp.error
+                    self.data_provider.error
                 ));
             }
         }
         Ok(get_ok_add_reply!(ids))
     }
 
-    pub async fn update(&self, dp: &DataProvider, items: Vec<models::Car>) -> Result<Reply> {
-        let pool: &PgPool = &dp.pool;
+    pub async fn update(&self, items: Vec<models::Car>) -> Result<Reply> {
+        let pool: &PgPool = &self.data_provider.pool;
         let mut tx = pool.begin().await?;
         let mut count: u64 = 0;
         for item in &items {
             match sqlx::query!(
-                r#"UPDATE public.car SET car_name = $1 WHERE id = $2"#,
+                r#"UPDATE rust.car SET car_name = $1 WHERE id = $2"#,
                 item.car_name,
                 item.id.unwrap_or(0)
             )
@@ -279,7 +276,7 @@ impl CarCollection {
                     tx.rollback().await?;
                     return Ok(get_error_reply!(
                         errors::ErrorCode::ReplyErrorDatabase,
-                        dp.error
+                        self.data_provider.error
                     ));
                 }
             };
@@ -291,7 +288,7 @@ impl CarCollection {
                     println!("update_cars db commit error: {}", e);
                     return Ok(get_error_reply!(
                         errors::ErrorCode::ReplyErrorDatabase,
-                        dp.error
+                        self.data_provider.error
                     ));
                 }
             }
@@ -300,14 +297,14 @@ impl CarCollection {
             tx.rollback().await?;
             Ok(get_error_reply!(
                 errors::ErrorCode::ReplyErrorNotFound,
-                dp.error
+                self.data_provider.error
             ))
         }
     }
-    pub async fn delete(&self, dp: &DataProvider, ids: Vec<i32>) -> Result<Reply> {
-        let pool: &PgPool = &dp.pool;
+    pub async fn delete(&self, ids: Vec<i32>) -> Result<Reply> {
+        let pool: &PgPool = &self.data_provider.pool;
         let mut tx = pool.begin().await?;
-        match sqlx::query(&self.exp_helper.get_delete_in_exp("public.car", &ids))
+        match sqlx::query(&self.exp_helper.get_delete_in_exp("rust.car", &ids))
             .execute(&mut tx)
             .await
         {
@@ -319,7 +316,7 @@ impl CarCollection {
                             println!("delete_cars db commit error: {}", e);
                             return Ok(get_error_reply!(
                                 errors::ErrorCode::ReplyErrorDatabase,
-                                dp.error
+                                self.data_provider.error
                             ));
                         }
                     }
@@ -328,7 +325,7 @@ impl CarCollection {
                     tx.rollback().await?;
                     Ok(get_error_reply!(
                         errors::ErrorCode::ReplyErrorNotFound,
-                        dp.error
+                        self.data_provider.error
                     ))
                 }
             }
@@ -337,7 +334,7 @@ impl CarCollection {
                 tx.rollback().await?;
                 Ok(get_error_reply!(
                     errors::ErrorCode::ReplyErrorDatabase,
-                    dp.error
+                    self.data_provider.error
                 ))
             }
         }
@@ -346,20 +343,21 @@ impl CarCollection {
 
 pub struct SubscriptionCollection {
     exp_helper: &'static ExpHelper,
+    data_provider: Arc<PgDbProvider>,
 }
 
 impl SubscriptionCollection {
-    pub fn new(helper: &'static ExpHelper) -> SubscriptionCollection {
+    pub fn new(
+        data_provider: Arc<PgDbProvider>,
+        helper: &'static ExpHelper,
+    ) -> SubscriptionCollection {
         SubscriptionCollection {
+            data_provider: data_provider,
             exp_helper: &helper,
         }
     }
 
-    pub async fn get(
-        &self,
-        dp: &DataProvider,
-        ids: Option<Vec<i32>>,
-    ) -> Result<Vec<models::Subscription>> {
+    pub async fn get(&self, ids: Option<Vec<i32>>) -> Result<Vec<models::Subscription>> {
         let mut items = Vec::<models::Subscription>::new();
         items.push(models::Subscription {
             id: Some(1),
@@ -372,7 +370,6 @@ impl SubscriptionCollection {
 
     pub async fn subscribe(
         &self,
-        dp: &DataProvider,
         object_name: &str,
         event_name: &str,
         call_back: &str,
@@ -385,7 +382,6 @@ impl SubscriptionCollection {
 
     pub async fn unsubscribe(
         &self,
-        dp: &DataProvider,
         object_name: &str,
         event_name: &str,
         call_back: &str,
