@@ -49,9 +49,10 @@ async fn main() {
     let app_settings: models::AppSettings =
         serde_json::from_str(&fs::read_to_string(file).unwrap()).unwrap();
 
-    let data_connector = collections::DataConnector::new(app_settings.pgDb)
-        .await
-        .expect("error while initialize data connector");
+    let data_connector =
+        collections::DataConnector::new(app_settings._pg_db, app_settings._my_sql_db)
+            .await
+            .expect("error while initialize data connector");
     let access_checker = routes::AccessChecker::from_data_connector(&data_connector)
         .await
         .expect("error while initialize access checker");

@@ -5,8 +5,8 @@ use std::collections::HashMap;
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub authentication: HashMap<String, String>,
-    pub pgDb: PgDb,
-    pub mySqlDb: MySqlDb,
+    pub _pg_db: PgDb,
+    pub _my_sql_db: MySqlDb,
 }
 
 #[derive(Deserialize)]
