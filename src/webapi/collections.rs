@@ -103,10 +103,11 @@ impl SqlDbProvider {
         let mut pool = PgPool::new(&connection_string).await.unwrap();
         #[cfg(feature = "mysql")]
         let mut pool = MySqlPool::new(&connection_string).await.unwrap();
-        let error_items = sqlx::query_as!(models::Error, r#"SELECT id,error_name FROM rust.error"#)
-            .fetch_all(&mut pool)
-            .await
-            .unwrap_or(Vec::<models::Error>::new());
+        let error_items =
+            sqlx::query_as!(models::Error, r#"SELECT id,error_name FROM webapi.error"#)
+                .fetch_all(&mut pool)
+                .await
+                .unwrap_or(Vec::<models::Error>::new());
         let mut error = HashMap::<isize, String>::new();
         for item in error_items {
             error.insert(item.id as isize, item.error_name);
@@ -139,14 +140,18 @@ impl UsrCollection {
         if ids.is_none() {
             Ok(sqlx::query_as!(
                 models::Usr,
-                r#"SELECT id,usr_name,usr_password FROM rust.usr"#
+                r#"SELECT id,usr_name,usr_password FROM webapi.usr"#
             )
             .fetch_all(&mut pool)
             .await?)
         } else {
-            let items = sqlx::query(&self.exp_helper.get_select_in_exp("rust.usr", &ids.unwrap()))
-                .fetch_all(&mut pool)
-                .await?;
+            let items = sqlx::query(
+                &self
+                    .exp_helper
+                    .get_select_in_exp("webapi.usr", &ids.unwrap()),
+            )
+            .fetch_all(&mut pool)
+            .await?;
             let mut result = Vec::<models::Usr>::new();
             for item in items {
                 result.push(models::Usr {
@@ -180,7 +185,7 @@ impl ErrorCollection {
         let mut pool: &MySqlPool = &self._data_provider.pool;
         if ids.is_none() {
             Ok(
-                sqlx::query_as!(models::Error, r#"SELECT id,error_name FROM rust.error"#)
+                sqlx::query_as!(models::Error, r#"SELECT id,error_name FROM webapi.error"#)
                     .fetch_all(&mut pool)
                     .await?,
             )
@@ -188,7 +193,7 @@ impl ErrorCollection {
             let items = sqlx::query(
                 &self
                     ._exp_helper
-                    .get_select_in_exp("rust.error", &ids.unwrap()),
+                    .get_select_in_exp("webapi.error", &ids.unwrap()),
             )
             .fetch_all(&mut pool)
             .await?;
@@ -224,14 +229,18 @@ impl CarCollection {
         let mut pool: &MySqlPool = &self.data_provider.pool;
         if ids.is_none() {
             Ok(
-                sqlx::query_as!(models::Car, r#"SELECT id,car_name FROM rust.car"#)
+                sqlx::query_as!(models::Car, r#"SELECT id,car_name FROM webapi.car"#)
                     .fetch_all(&mut pool)
                     .await?,
             )
         } else {
-            let items = sqlx::query(&self.exp_helper.get_select_in_exp("rust.car", &ids.unwrap()))
-                .fetch_all(&mut pool)
-                .await?;
+            let items = sqlx::query(
+                &self
+                    .exp_helper
+                    .get_select_in_exp("webapi.car", &ids.unwrap()),
+            )
+            .fetch_all(&mut pool)
+            .await?;
             let mut result = Vec::<models::Car>::new();
             for item in items {
                 result.push(models::Car {
@@ -253,7 +262,7 @@ impl CarCollection {
         for item in items {
             #[cfg(feature = "postgres")]
             match sqlx::query!(
-                r#"INSERT INTO rust.car ( car_name ) VALUES ( $1 ) RETURNING id"#,
+                r#"INSERT INTO webapi.car ( car_name ) VALUES ( $1 ) RETURNING id"#,
                 item.car_name
             )
             .fetch_one(&mut tx)
@@ -270,7 +279,7 @@ impl CarCollection {
                 }
             };
             #[cfg(feature = "mysql")]
-            match sqlx::query(r#"INSERT INTO rust.car ( car_name ) VALUES ( ? )"#)
+            match sqlx::query(r#"INSERT INTO webapi.car ( car_name ) VALUES ( ? )"#)
                 .bind(item.car_name)
                 .execute(&mut tx)
                 .await
@@ -324,7 +333,7 @@ impl CarCollection {
         for item in &items {
             #[cfg(feature = "postgres")]
             match sqlx::query!(
-                r#"UPDATE rust.car SET car_name = $1 WHERE id = $2"#,
+                r#"UPDATE webapi.car SET car_name = $1 WHERE id = $2"#,
                 item.car_name,
                 item.id.unwrap_or(0)
             )
@@ -343,7 +352,7 @@ impl CarCollection {
             };
             #[cfg(feature = "mysql")]
             match sqlx::query!(
-                r#"UPDATE rust.car SET car_name = ? WHERE id = ?"#,
+                r#"UPDATE car SET car_name = ? WHERE id = ?"#,
                 item.car_name,
                 item.id.unwrap_or(0)
             )
@@ -387,7 +396,7 @@ impl CarCollection {
         #[cfg(feature = "mysql")]
         let pool: &MySqlPool = &self.data_provider.pool;
         let mut tx = pool.begin().await?;
-        match sqlx::query(&self.exp_helper.get_delete_in_exp("rust.car", &ids))
+        match sqlx::query(&self.exp_helper.get_delete_in_exp("webapi.car", &ids))
             .execute(&mut tx)
             .await
         {

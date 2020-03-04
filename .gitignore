@@ -1,6 +1,7 @@
 /target
 **/*.rs.bk
 .vscode/
+log/
 Cargo.lock
 appsettings.dev.json
 test.txt

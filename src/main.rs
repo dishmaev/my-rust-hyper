@@ -11,8 +11,6 @@ use webapi::{collections, models, routes};
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
-
     const DEFAULT_APP_SETTINGS: &str = "appsettings.json";
     const ENV_APP_SETTINGS: &str = "MY_APP_SETTINGS";
 
@@ -21,6 +19,8 @@ async fn main() {
 
     const DEFAULT_PORT: u16 = 3456;
     const ENV_PORT: &str = "PORT";
+
+    dotenv().ok();
 
     let file: String = env::var(ENV_APP_SETTINGS).unwrap_or(String::from(DEFAULT_APP_SETTINGS));
 
