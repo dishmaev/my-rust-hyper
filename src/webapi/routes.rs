@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::sync::Arc;
+use tracing::info;
 
 pub const ROUTE_SIGHN_IN: &str = "/api/signin";
 pub const ROUTE_SIGHN_UP: &str = "/api/signup";
@@ -148,7 +149,9 @@ pub async fn service_route(
     }
 }
 
+#[tracing::instrument]
 pub fn get_basic_authorization(user: &String, password: &String) -> String {
+    info!("such information");
     format!(
         "Basic {}",
         base64::encode(&format!("{}:{}", user, password))

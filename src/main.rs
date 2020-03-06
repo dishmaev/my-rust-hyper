@@ -7,6 +7,7 @@ use std::env;
 use std::fs;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tracing::info;
 use webapi::{collections, models, routes};
 
 #[tokio::main]
@@ -21,6 +22,10 @@ async fn main() {
     const ENV_PORT: &str = "PORT";
 
     dotenv().ok();
+
+    tracing_subscriber::fmt::init();
+
+    info!("starting up");
 
     let file: String = env::var(ENV_APP_SETTINGS).unwrap_or(String::from(DEFAULT_APP_SETTINGS));
 
