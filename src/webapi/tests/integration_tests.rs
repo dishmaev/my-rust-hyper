@@ -7,6 +7,13 @@ use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
+fn get_basic_authorization(user: &String, password: &String) -> String {
+    format!(
+        "Basic {}",
+        base64::encode(&format!("{}:{}", user, password))
+    )
+}
+
 fn get_sock_addr_and_app_settings() -> (SocketAddr, Arc<routes::AccessChecker>) {
     let mut rng = rand::thread_rng();
     let app_settings: models::AppSettings =
@@ -24,7 +31,7 @@ async fn call_service(method: hyper::Method, port: u16, path: &str, body: Body) 
         .uri(format!("http://{}:{}{}", Ipv4Addr::LOCALHOST, port, path))
         .header(
             "Authorization",
-            routes::get_basic_authorization(&"test".to_string(), &"1234567890".to_string()),
+            get_basic_authorization(&"test".to_string(), &"1234567890".to_string()),
         )
         .body(body)
         .expect("request builder");

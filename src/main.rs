@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 mod webapi;
 
 use dotenv::dotenv;
@@ -7,13 +10,17 @@ use std::env;
 use std::fs;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing::info;
-use webapi::{collections, models, routes};
+use webapi::{connectors, models, routes, access};
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
+
     const DEFAULT_APP_SETTINGS: &str = "appsettings.json";
     const ENV_APP_SETTINGS: &str = "MY_APP_SETTINGS";
+
+    const DEFAULT_LOG_SETTINGS: &str = "log4rs.yml";
+    const ENV_LOG_SETTINGS: &str = "MY_LOG_SETTINGS";
 
     const DEFAULT_HOST: &str = "127.0.0.1";
     const ENV_HOST: &str = "MY_BIN_HOST";
@@ -21,13 +28,10 @@ async fn main() {
     const DEFAULT_PORT: u16 = 3456;
     const ENV_PORT: &str = "PORT";
 
-    dotenv().ok();
-
-    tracing_subscriber::fmt::init();
+    let log_setting_file: String = env::var(ENV_LOG_SETTINGS).unwrap_or(String::from(DEFAULT_LOG_SETTINGS));
+    log4rs::init_file(log_setting_file, Default::default()).unwrap();    
 
     info!("starting up");
-
-    let file: String = env::var(ENV_APP_SETTINGS).unwrap_or(String::from(DEFAULT_APP_SETTINGS));
 
     let host: Option<String> = {
         match env::var(ENV_HOST).is_ok() {
@@ -51,14 +55,15 @@ async fn main() {
     .parse::<SocketAddr>()
     .unwrap();
 
+    let app_setting_file: String = env::var(ENV_APP_SETTINGS).unwrap_or(String::from(DEFAULT_APP_SETTINGS));
     let app_settings: models::AppSettings =
-        serde_json::from_str(&fs::read_to_string(file).unwrap()).unwrap();
+        serde_json::from_str(&fs::read_to_string(app_setting_file).unwrap()).unwrap();
 
     let data_connector =
-        collections::DataConnector::new(app_settings._pg_db, app_settings._my_sql_db)
+        connectors::DataConnector::new(app_settings._pg_db, app_settings._my_sql_db)
             .await
             .expect("error while initialize data connector");
-    let access_checker = routes::AccessChecker::from_data_connector(&data_connector)
+    let access_checker = access::AccessChecker::from_data_connector(&data_connector)
         .await
         .expect("error while initialize access checker");
 
@@ -70,7 +75,7 @@ async fn main() {
         let ac = access_checker_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                routes::service_route(req, dc.clone(), ac.clone())
+                routes::service::service_route(req, dc.clone(), ac.clone())
             }))
         }
     });
@@ -79,6 +84,9 @@ async fn main() {
 
     if let Err(e) = graceful.await {
         eprintln!("server error: {}", e);
+    }
+    else{
+        info!("shutdown");
     }
 }
 
