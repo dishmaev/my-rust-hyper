@@ -33,8 +33,8 @@ pub async fn service_route(
                 .unwrap());
         }
         Ok(match parts.uri.path() {
-            path::ROUTE_SIGHN_IN => resp(handlers::signin::signin().await),
-            path::ROUTE_SIGHN_UP => resp(handlers::signup::signup().await),
+            path::ROUTE_SIGHN_IN => resp(handlers::usr::signin().await),
+            path::ROUTE_SIGHN_UP => resp(handlers::usr::signup().await),
             path::ROUTE_SUBSCRIPTION_ITEMS => resp(handlers::subscription::get(&db, None).await),
             path::ROUTE_SUBSCRIPTION_GET => resp(
                 handlers::subscription::get(&db, serde_json::from_reader(reader).unwrap()).await,

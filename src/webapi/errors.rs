@@ -1,6 +1,6 @@
 use serde_repr::Serialize_repr;
 
-#[derive(Serialize_repr, Debug)]
+#[derive(Serialize_repr, Debug, PartialEq)]
 #[repr(i16)]
 pub enum ErrorCode {
     ReplyOk = 0,
