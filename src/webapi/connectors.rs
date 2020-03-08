@@ -51,12 +51,12 @@ pub struct DataConnector {
 }
 
 impl DataConnector { 
-    pub async fn new(_pg_db: models::PgDb, _my_sql_db: models::MySqlDb) -> Result<DataConnector> {
+    pub async fn new(_pg_db: &models::PgDb, _my_sql_db: &models::MySqlDb) -> Result<DataConnector> {
         let exp_helper: &'static ExpHelper = &ExpHelper::new();
         #[cfg(feature = "postgres")]
-        let dp_arc = Arc::new(SqlDbProvider::new(_pg_db.connection_string).await?);
+        let dp_arc = Arc::new(SqlDbProvider::new(&_pg_db.connection_string).await?);
         #[cfg(feature = "mysql")]
-        let dp_arc = Arc::new(SqlDbProvider::new(_my_sql_db.connection_string).await?);
+        let dp_arc = Arc::new(SqlDbProvider::new(&_my_sql_db.connection_string).await?);
         Ok(DataConnector {
             error: error::ErrorCollection::new(dp_arc.clone(), &exp_helper),
             usr: usr::UsrCollection::new(dp_arc.clone(), &exp_helper),
@@ -75,7 +75,7 @@ pub struct SqlDbProvider {
 }
 
 impl SqlDbProvider {
-    pub async fn new(connection_string: String) -> Result<SqlDbProvider> {
+    pub async fn new(connection_string: &String) -> Result<SqlDbProvider> {
         debug!("connection string {}", connection_string);
         #[cfg(feature = "postgres")]
         let mut pool = PgPool::new(&connection_string).await.unwrap();

@@ -26,9 +26,15 @@ pub struct AddReply {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    pub authentication: HashMap<String, String>,
+    pub _access: Option<Access>,
     pub _pg_db: PgDb,
     pub _my_sql_db: MySqlDb,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Access {
+    pub authentication: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]

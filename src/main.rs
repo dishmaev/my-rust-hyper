@@ -60,7 +60,7 @@ async fn main() {
         serde_json::from_str(&fs::read_to_string(app_setting_file).unwrap()).unwrap();
 
     let data_connector =
-        connectors::DataConnector::new(app_settings._pg_db, app_settings._my_sql_db)
+        connectors::DataConnector::new(&app_settings._pg_db, &app_settings._my_sql_db)
             .await
             .expect("error while initialize data connector");
     let access_checker = access::AccessChecker::from_data_connector(&data_connector)

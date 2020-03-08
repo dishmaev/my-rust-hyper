@@ -1,5 +1,4 @@
-/*
-use super::super::{models, routes};
+use super::super::{access, connectors, models, routes::*};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Client, Error, Method, Request, Response, Server, StatusCode};
 use rand::prelude::Rng;
@@ -14,13 +13,20 @@ fn get_basic_authorization(user: &String, password: &String) -> String {
     )
 }
 
-fn get_sock_addr_and_app_settings() -> (SocketAddr, Arc<routes::AccessChecker>) {
+async fn get_settings() -> (SocketAddr, Arc<connectors::DataConnector>, Arc<access::AccessChecker>) {
     let mut rng = rand::thread_rng();
     let app_settings: models::AppSettings =
         serde_json::from_str(&fs::read_to_string("appsettings.test.json").unwrap()).unwrap();
-    let access_checker = routes::AccessChecker::from_app_settings(&app_settings);
+    let data_connector =
+        connectors::DataConnector::new(&app_settings._pg_db, &app_settings._my_sql_db)
+            .await
+            .expect("error while initialize data connector");
+    let access_checker = access::AccessChecker::from_app_settings(&app_settings._access.unwrap())
+            .await
+            .expect("error while initialize access checker");
     (
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), rng.gen_range(15000, 25000)),
+        Arc::new(data_connector),
         Arc::new(access_checker),
     )
 }
@@ -41,10 +47,11 @@ async fn call_service(method: hyper::Method, port: u16, path: &str, body: Body) 
 
 #[tokio::test(threaded_scheduler)]
 async fn test_index_ok() {
-    let (addr, sets) = get_sock_addr_and_app_settings();
+    let (addr, data_connector_arc, access_checker_arc) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
-        let s = sets.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
+        let dc = data_connector_arc.clone();
+        let ac = access_checker_arc.clone();
+        async move { Ok::<_, Error>(service_fn(move |req| service::service_route(req, dc.clone(), ac.clone()))) }
     });
     let app = Server::bind(&addr).serve(make_svc);
 
@@ -66,10 +73,11 @@ async fn test_index_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_spec_json_ok() {
-    let (addr, sets) = get_sock_addr_and_app_settings();
+    let (addr, data_connector_arc, access_checker_arc) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
-        let s = sets.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
+        let dc = data_connector_arc.clone();
+        let ac = access_checker_arc.clone();
+        async move { Ok::<_, Error>(service_fn(move |req| service::service_route(req, dc.clone(), ac.clone()))) }
     });
     let app = Server::bind(&addr).serve(make_svc);
 
@@ -91,10 +99,11 @@ async fn test_spec_json_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_spec_yaml_ok() {
-    let (addr, sets) = get_sock_addr_and_app_settings();
+    let (addr, data_connector_arc, access_checker_arc) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
-        let s = sets.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
+        let dc = data_connector_arc.clone();
+        let ac = access_checker_arc.clone();
+        async move { Ok::<_, Error>(service_fn(move |req| service::service_route(req, dc.clone(), ac.clone()))) }
     });
     let app = Server::bind(&addr).serve(make_svc);
 
@@ -116,10 +125,11 @@ async fn test_spec_yaml_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_route_ok() {
-    let (addr, sets) = get_sock_addr_and_app_settings();
+    let (addr, data_connector_arc, access_checker_arc) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
-        let s = sets.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
+        let dc = data_connector_arc.clone();
+        let ac = access_checker_arc.clone();
+        async move { Ok::<_, Error>(service_fn(move |req| service::service_route(req, dc.clone(), ac.clone()))) }
     });
     let app = Server::bind(&addr).serve(make_svc);
 
@@ -129,18 +139,19 @@ async fn test_route_ok() {
         }
     });
 
-    for route in routes::ROUTES.iter() {
-        let resp = call_service(Method::POST, addr.port(), route, Body::from("{}")).await;
+    for route in path::ROUTE_WITH_EMPTY_BODY.iter() {
+        let resp = call_service(Method::POST, addr.port(), route, Body::empty()).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }
 
 #[tokio::test(threaded_scheduler)]
 async fn test_route_err() {
-    let (addr, sets) = get_sock_addr_and_app_settings();
+    let (addr, data_connector_arc, access_checker_arc) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
-        let s = sets.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
+        let dc = data_connector_arc.clone();
+        let ac = access_checker_arc.clone();
+        async move { Ok::<_, Error>(service_fn(move |req| service::service_route(req, dc.clone(), ac.clone()))) }
     });
     let app = Server::bind(&addr).serve(make_svc);
 
@@ -153,104 +164,3 @@ async fn test_route_err() {
     let resp = call_service(Method::POST, addr.port(), "/fake", Body::from("{}")).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
-
-#[tokio::test(threaded_scheduler)]
-async fn test_signin_ok() {
-    let (addr, sets) = get_sock_addr_and_app_settings();
-    let make_svc = make_service_fn(move |_| {
-        let s = sets.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
-    });
-    let app = Server::bind(&addr).serve(make_svc);
-
-    tokio::spawn(async move {
-        if let Err(err) = app.await {
-            eprintln!("server error: {}", err);
-        }
-    });
-
-    let resp = call_service(
-        Method::POST,
-        addr.port(),
-        routes::ROUTE_SIGHN_IN,
-        Body::empty(),
-    )
-    .await;
-    assert_eq!(resp.status(), StatusCode::OK);
-}
-
-#[tokio::test(threaded_scheduler)]
-async fn test_signin_err() {
-    let (addr, sets) = get_sock_addr_and_app_settings();
-    let make_svc = make_service_fn(move |_| {
-        let s = sets.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
-    });
-    let app = Server::bind(&addr).serve(make_svc);
-
-    tokio::spawn(async move {
-        if let Err(err) = app.await {
-            eprintln!("server error: {}", err);
-        }
-    });
-
-    let resp = call_service(
-        Method::POST,
-        addr.port(),
-        routes::ROUTE_SIGHN_IN,
-        Body::empty(),
-    )
-    .await;
-    assert_ne!(resp.status(), StatusCode::NOT_FOUND);
-}
-
-#[tokio::test(threaded_scheduler)]
-async fn test_signup_ok() {
-    let (addr, sets) = get_sock_addr_and_app_settings();
-    let make_svc = make_service_fn(move |_| {
-        let s = sets.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
-    });
-    let app = Server::bind(&addr).serve(make_svc);
-
-    tokio::spawn(async move {
-        if let Err(err) = app.await {
-            eprintln!("server error: {}", err);
-        }
-    });
-
-    let resp = call_service(
-        Method::POST,
-        addr.port(),
-        routes::ROUTE_SIGHN_UP,
-        Body::empty(),
-    )
-    .await;
-    assert_eq!(resp.status(), StatusCode::OK);
-}
-
-#[tokio::test(threaded_scheduler)]
-async fn test_signup_err() {
-    let (addr, sets) = get_sock_addr_and_app_settings();
-    let make_svc = make_service_fn(move |_| {
-        let s = sets.clone();
-        async move { Ok::<_, Error>(service_fn(move |req| routes::service_route(req, s.clone()))) }
-    });
-    let app = Server::bind(&addr).serve(make_svc);
-
-    tokio::spawn(async move {
-        if let Err(err) = app.await {
-            eprintln!("server error: {}", err);
-        }
-    });
-
-    let resp = call_service(
-        Method::POST,
-        addr.port(),
-        routes::ROUTE_SIGHN_UP,
-        Body::empty(),
-    )
-    .await;
-    assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
-}
-*/

@@ -13,19 +13,22 @@ impl AccessChecker {
             base64::encode(&format!("{}:{}", user, password))
         )
     }
-    
-    pub fn _from_app_settings(app_settings: &models::AppSettings) -> AccessChecker {
+
+    pub async fn from_app_settings(access: &models::Access) -> connectors::Result<AccessChecker> {
         let mut authorization: HashMap<String, String> = HashMap::new();
-        for item in &app_settings.authentication {
-            authorization.insert(
-                AccessChecker::get_basic_authorization(&item.0, &item.1),
-                item.1.to_string(),
-            );
+        async {
+            for item in &access.authentication {
+                authorization.insert(
+                    AccessChecker::get_basic_authorization(&item.0, &item.1),
+                    item.0.to_string(),
+                );
+            }
         }
+        .await;
         debug!("{} users", authorization.len());
-        AccessChecker {
+        Ok(AccessChecker {
             user_authorization: authorization,
-        }
+        })
     }
 
     pub async fn from_data_connector(

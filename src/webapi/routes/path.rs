@@ -16,13 +16,11 @@ pub const ROUTE_CAR_DELETE: &str = "/car/delete";
 pub const ROUTE_USR_ITEMS: &str = "/usrs";
 
 #[cfg(test)]
-pub const ROUTES: [&str; 7] = [
+pub const ROUTE_WITH_EMPTY_BODY: [&str; 5] = [
     ROUTE_SIGHN_IN,
     ROUTE_SIGHN_UP,
-    ROUTE_CAR_GET,
-    ROUTE_CAR_DELETE,
-    ROUTE_CAR_ON_DELETE_SUBSCRIBE,
-    ROUTE_CAR_ON_DELETE_UNSUBSCRIBE,
+    ROUTE_CAR_ITEMS,
     ROUTE_SUBSCRIPTION_ITEMS,
+    ROUTE_USR_ITEMS
 ];
 

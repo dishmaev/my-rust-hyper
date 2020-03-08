@@ -1,3 +1,3 @@
 mod index;
-mod path;
+pub mod path;
 pub mod service;
