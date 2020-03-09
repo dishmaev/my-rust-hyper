@@ -1,4 +1,5 @@
-use super::super::{connectors, collections::*, errors, models};
+use super::super::{connectors, entities::subscription, errors};
+use super::models;
 
 pub async fn get(
     dc: &connectors::DataConnector,
@@ -13,10 +14,15 @@ pub async fn subscribe(
     event_name: &str,
     call_back: &str,
 ) -> connectors::Result<models::Reply> {
-    Ok(dc
+    let result = dc
         .subscription
-        .subscribe(object_name, event_name, call_back)
-        .await?)
+        .unsubscribe(object_name, event_name, call_back)
+        .await?;
+    if result == errors::ErrorCode::ReplyOk {
+        Ok(get_ok_reply!())
+    } else {
+        Ok(get_error_reply!(&result, dc.error))
+    }
 }
 
 pub async fn unsubscribe(
@@ -25,8 +31,13 @@ pub async fn unsubscribe(
     event_name: &str,
     call_back: &str,
 ) -> connectors::Result<models::Reply> {
-    Ok(dc
+    let result = dc
         .subscription
-        .unsubscribe(object_name, event_name, call_back)
-        .await?)
+        .subscribe(object_name, event_name, call_back)
+        .await?;
+    if result == errors::ErrorCode::ReplyOk {
+        Ok(get_ok_reply!())
+    } else {
+        Ok(get_error_reply!(&result, dc.error))
+    }
 }

@@ -1,18 +1,10 @@
-use super::super::{connectors};
+use super::super::{connectors, entities::error};
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
 use sqlx::Row;
 use std::sync::Arc;
-use serde::{Serialize};
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Error {
-    pub id: i32,
-    pub error_name: String,
-}
 
 pub struct ErrorCollection {
     _data_provider: Arc<connectors::SqlDbProvider>,
@@ -27,14 +19,14 @@ impl ErrorCollection {
         }
     }
 
-    pub async fn _get(&self, ids: Option<Vec<i32>>) -> connectors::Result<Vec<Error>> {
+    pub async fn _get(&self, ids: Option<Vec<i32>>) -> connectors::Result<Vec<error::Error>> {
         #[cfg(feature = "postgres")]
         let mut pool: &PgPool = &self._data_provider.pool;
         #[cfg(feature = "mysql")]
         let mut pool: &MySqlPool = &self._data_provider.pool;
         if ids.is_none() {
             Ok(
-                sqlx::query_as!(Error, r#"SELECT id,error_name FROM webapi.error"#)
+                sqlx::query_as!(error::Error, r#"SELECT id,error_name FROM webapi.error"#)
                     .fetch_all(&mut pool)
                     .await?,
             )
@@ -46,9 +38,9 @@ impl ErrorCollection {
             )
             .fetch_all(&mut pool)
             .await?;
-            let mut items = Vec::<Error>::new();
+            let mut items = Vec::<error::Error>::new();
             for rec in recs {
-                items.push(Error {
+                items.push(error::Error {
                     id: rec.get(0),
                     error_name: rec.get(1),
                 })

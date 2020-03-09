@@ -10,7 +10,7 @@ use std::env;
 use std::fs;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use webapi::{connectors, models, routes, access};
+use webapi::{access, connectors, routes, settings};
 
 #[tokio::main]
 async fn main() {
@@ -28,8 +28,9 @@ async fn main() {
     const DEFAULT_PORT: u16 = 3456;
     const ENV_PORT: &str = "PORT";
 
-    let log_setting_file: String = env::var(ENV_LOG_SETTINGS).unwrap_or(String::from(DEFAULT_LOG_SETTINGS));
-    log4rs::init_file(log_setting_file, Default::default()).unwrap();    
+    let log_setting_file: String =
+        env::var(ENV_LOG_SETTINGS).unwrap_or(String::from(DEFAULT_LOG_SETTINGS));
+    log4rs::init_file(log_setting_file, Default::default()).unwrap();
 
     info!("starting up");
 
@@ -55,12 +56,13 @@ async fn main() {
     .parse::<SocketAddr>()
     .unwrap();
 
-    let app_setting_file: String = env::var(ENV_APP_SETTINGS).unwrap_or(String::from(DEFAULT_APP_SETTINGS));
-    let app_settings: models::AppSettings =
+    let app_setting_file: String =
+        env::var(ENV_APP_SETTINGS).unwrap_or(String::from(DEFAULT_APP_SETTINGS));
+    let app_settings: settings::AppSettings =
         serde_json::from_str(&fs::read_to_string(app_setting_file).unwrap()).unwrap();
 
     let data_connector =
-        connectors::DataConnector::new(&app_settings._pg_db, &app_settings._my_sql_db)
+        connectors::DataConnector::new(app_settings._error, Some(app_settings._pg_db), Some(app_settings._my_sql_db))
             .await
             .expect("error while initialize data connector");
     let access_checker = access::AccessChecker::from_data_connector(&data_connector)
@@ -84,8 +86,7 @@ async fn main() {
 
     if let Err(e) = graceful.await {
         eprintln!("server error: {}", e);
-    }
-    else{
+    } else {
         info!("shutdown");
     }
 }

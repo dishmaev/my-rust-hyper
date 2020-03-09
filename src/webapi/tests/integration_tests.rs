@@ -1,4 +1,4 @@
-use super::super::{access, connectors, models, routes::*};
+/*use super::super::{access, connectors, settings, routes::*};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Client, Error, Method, Request, Response, Server, StatusCode};
 use rand::prelude::Rng;
@@ -15,13 +15,13 @@ fn get_basic_authorization(user: &String, password: &String) -> String {
 
 async fn get_settings() -> (SocketAddr, Arc<connectors::DataConnector>, Arc<access::AccessChecker>) {
     let mut rng = rand::thread_rng();
-    let app_settings: models::AppSettings =
+    let app_settings: settings::AppSettings =
         serde_json::from_str(&fs::read_to_string("appsettings.test.json").unwrap()).unwrap();
     let data_connector =
-        connectors::DataConnector::new(&app_settings._pg_db, &app_settings._my_sql_db)
+        connectors::DataConnector::new(app_settings._error, Some(app_settings._pg_db), Some(app_settings._my_sql_db))
             .await
             .expect("error while initialize data connector");
-    let access_checker = access::AccessChecker::from_app_settings(&app_settings._access.unwrap())
+    let access_checker = access::AccessChecker::_from_app_settings(&app_settings._access.unwrap())
             .await
             .expect("error while initialize access checker");
     (
@@ -163,4 +163,4 @@ async fn test_route_err() {
 
     let resp = call_service(Method::POST, addr.port(), "/fake", Body::from("{}")).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-}
+} */

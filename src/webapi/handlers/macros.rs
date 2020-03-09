@@ -24,8 +24,8 @@ macro_rules! get_ok_add_reply {
 macro_rules! get_error_reply {
     ($ec:expr, $en:expr) => {
         models::Reply {
-            error_code: $ec,
-            error_name: Some($en.get(&($ec as isize)).unwrap().clone()),
+            error_code: $ec.clone(),
+            error_name: Some($en.get(&$ec.as_isize()).unwrap().clone()),
         }
     };
 }
@@ -34,8 +34,8 @@ macro_rules! get_error_reply {
 macro_rules! get_error_add_reply {
     ($ec:expr, $en:expr) => {
         models::AddReply {
-            error_code: $ec,
-            error_name: Some($en.get(&($ec as isize)).unwrap().clone()),
+            error_code: $ec.clone(),
+            error_name: Some($en.get(&$ec.as_isize()).unwrap().clone()),
             ids: None
         }
     };

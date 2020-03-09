@@ -1,4 +1,5 @@
-use super::super::{connectors, collections::*, errors, models};
+use super::super::{connectors, entities::car, errors};
+use super::models;
 
 pub async fn get(
     dc: &connectors::DataConnector,
@@ -11,19 +12,34 @@ pub async fn add(
     dc: &connectors::DataConnector,
     items: Vec<car::Car>,
 ) -> connectors::Result<models::AddReply> {
-    Ok(dc.car.add(items).await?)
+    let (result, ids) = dc.car.add(items).await?;
+    if result == errors::ErrorCode::ReplyOk {
+        Ok(get_ok_add_reply!(ids.unwrap()))
+    } else {
+        Ok(get_error_add_reply!(&result, dc.error))
+    }
 }
 
 pub async fn update(
     dc: &connectors::DataConnector,
     items: Vec<car::Car>,
 ) -> connectors::Result<models::Reply> {
-    Ok(dc.car.update(items).await?)
+    let result: errors::ErrorCode = dc.car.update(items).await?;
+    if result == errors::ErrorCode::ReplyOk {
+        Ok(get_ok_reply!())
+    } else {
+        Ok(get_error_reply!(&result, dc.error))
+    }
 }
 
 pub async fn delete(
     dc: &connectors::DataConnector,
     ids: Vec<i32>,
 ) -> connectors::Result<models::Reply> {
-    Ok(dc.car.delete(ids).await?)
+    let result: errors::ErrorCode = dc.car.delete(ids).await?;
+    if result == errors::ErrorCode::ReplyOk {
+        Ok(get_ok_reply!())
+    } else {
+        Ok(get_error_reply!(&result, dc.error))
+    }
 }

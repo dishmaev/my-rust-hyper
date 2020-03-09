@@ -1,4 +1,4 @@
-use super::super::{connectors, handlers::*, errors};
+/*use super::super::{handlers::*, errors, connectors};
 
 #[tokio::test(threaded_scheduler)]
 async fn test_signin_ok() {
@@ -23,3 +23,10 @@ async fn test_signup_err() {
     let reply = usr::signin().await.unwrap();
     assert_ne!(reply.error_code, errors::ErrorCode::ReplyErrorDatabase);
 }
+
+#[tokio::test(threaded_scheduler)]
+async fn test_car_get_ok() {
+    let reply = car::get(&connectors::DataConnector::new(None, None, None).await.unwrap(), None).await.unwrap();
+    assert_eq!(reply.len(), 1);
+}
+*/

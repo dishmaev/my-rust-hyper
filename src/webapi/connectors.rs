@@ -1,4 +1,8 @@
-use super::{models, collections::*};
+#[cfg(not(test))]
+use super::collections;
+#[cfg(test)]
+use super::tests::fakes;
+use super::{entities, settings};
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
 #[cfg(feature = "postgres")]
@@ -8,7 +12,7 @@ use std::sync::Arc;
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
-pub struct ExpHelper {}
+pub struct ExpHelper;
 
 impl ExpHelper {
     fn new() -> &'static ExpHelper {
@@ -44,25 +48,67 @@ impl ExpHelper {
 }
 
 pub struct DataConnector {
-    pub error: error::ErrorCollection,
-    pub usr: usr::UsrCollection,
-    pub car: car::CarCollection,
-    pub subscription: subscription::SubscriptionCollection,
+    pub error: HashMap<isize, String>,
+    #[cfg(not(test))]
+    pub usr: collections::usr::UsrCollection,
+    #[cfg(test)]
+    pub usr: fakes::usr::UsrCollection,
+    #[cfg(not(test))]
+    pub car: collections::car::CarCollection,
+    #[cfg(test)]
+    pub car: fakes::car::CarCollection,
+    #[cfg(not(test))]
+    pub subscription: collections::subscription::SubscriptionCollection,
+    #[cfg(test)]
+    pub subscription: fakes::subscription::SubscriptionCollection,
 }
 
-impl DataConnector { 
-    pub async fn new(_pg_db: &models::PgDb, _my_sql_db: &models::MySqlDb) -> Result<DataConnector> {
-        let exp_helper: &'static ExpHelper = &ExpHelper::new();
-        #[cfg(feature = "postgres")]
-        let dp_arc = Arc::new(SqlDbProvider::new(&_pg_db.connection_string).await?);
-        #[cfg(feature = "mysql")]
-        let dp_arc = Arc::new(SqlDbProvider::new(&_my_sql_db.connection_string).await?);
+impl DataConnector {
+    pub async fn new(
+        _error: Option<HashMap<isize, String>>,
+        _pg_db: Option<settings::PgDb>,
+        _my_sql_db: Option<settings::MySqlDb>,
+    ) -> Result<DataConnector> {
+        #[cfg(not(test))]
+        let _exp_helper: &'static ExpHelper = &ExpHelper::new();
+        #[cfg(all(not(test), feature = "postgres"))]
+        let dp = SqlDbProvider::new(&_pg_db.unwrap().connection_string).await?;
+        #[cfg(all(not(test), feature = "mysql"))]
+        let dp = SqlDbProvider::new(&_my_sql_db.unwrap().connection_string).await?;
+        let mut error = HashMap::<isize, String>::new();
+        if _error.is_some() {
+            error.extend(_error.unwrap());
+        }
+        #[cfg(not(test))]
+        error.extend(DataConnector::merge_errors(dp.get_errors().await?));
+        #[cfg(not(test))]
+        let _dp_arc = Arc::new(dp);
         Ok(DataConnector {
-            error: error::ErrorCollection::new(dp_arc.clone(), &exp_helper),
-            usr: usr::UsrCollection::new(dp_arc.clone(), &exp_helper),
-            car: car::CarCollection::new(dp_arc.clone(), &exp_helper),
-            subscription: subscription::SubscriptionCollection::new(dp_arc.clone(), &exp_helper),
+            error: error,
+            #[cfg(not(test))]
+            usr: collections::usr::UsrCollection::new(_dp_arc.clone(), &_exp_helper),
+            #[cfg(test)]
+            usr: fakes::usr::UsrCollection::new(),
+            #[cfg(not(test))]
+            car: collections::car::CarCollection::new(_dp_arc.clone(), &_exp_helper),
+            #[cfg(test)]
+            car: fakes::car::CarCollection::new(),
+            #[cfg(not(test))]
+            subscription: collections::subscription::SubscriptionCollection::new(
+                _dp_arc.clone(),
+                &_exp_helper,
+            ),
+            #[cfg(test)]
+            subscription: fakes::subscription::SubscriptionCollection::new(),
         })
+    }
+
+    fn merge_errors(items: Vec<entities::error::Error>) -> HashMap<isize, String> {
+        let mut error = HashMap::<isize, String>::new();
+        for item in items {
+            error.insert(item.id as isize, item.error_name);
+        }
+        error
     }
 }
 
@@ -71,29 +117,31 @@ pub struct SqlDbProvider {
     pub pool: Arc<PgPool>,
     #[cfg(feature = "mysql")]
     pub pool: Arc<MySqlPool>,
-    pub error: HashMap<isize, String>,
 }
 
 impl SqlDbProvider {
     pub async fn new(connection_string: &String) -> Result<SqlDbProvider> {
         debug!("connection string {}", connection_string);
         #[cfg(feature = "postgres")]
-        let mut pool = PgPool::new(&connection_string).await.unwrap();
+        let pool = PgPool::new(&connection_string).await.unwrap();
         #[cfg(feature = "mysql")]
-        let mut pool = MySqlPool::new(&connection_string).await.unwrap();
-        let error_items =
-            sqlx::query_as!(error::Error, r#"SELECT id,error_name FROM webapi.error"#)
-                .fetch_all(&mut pool)
-                .await
-                .unwrap_or(Vec::<error::Error>::new());
-        let mut error = HashMap::<isize, String>::new();
-        for item in error_items {
-            error.insert(item.id as isize, item.error_name);
-        }
+        let pool = MySqlPool::new(&connection_string).await.unwrap();
         Ok(SqlDbProvider {
             pool: Arc::new(pool),
-            error: error,
         })
     }
-}
 
+    pub async fn get_errors(&self) -> Result<Vec<entities::error::Error>> {
+        #[cfg(feature = "postgres")]
+        let mut pool: &PgPool = &self.pool;
+        #[cfg(feature = "mysql")]
+        let mut pool: &MySqlPool = &self.pool;
+        Ok(sqlx::query_as!(
+            entities::error::Error,
+            r#"SELECT id,error_name FROM webapi.error"#
+        )
+        .fetch_all(&mut pool)
+        .await
+        .unwrap_or(Vec::<entities::error::Error>::new()))
+    }
+}

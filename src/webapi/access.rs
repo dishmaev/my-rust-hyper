@@ -1,4 +1,4 @@
-use super::{connectors, models};
+use super::{connectors, settings};
 use base64;
 use std::collections::HashMap;
 
@@ -14,7 +14,7 @@ impl AccessChecker {
         )
     }
 
-    pub async fn from_app_settings(access: &models::Access) -> connectors::Result<AccessChecker> {
+    pub async fn _from_app_settings(access: &settings::Access) -> connectors::Result<AccessChecker> {
         let mut authorization: HashMap<String, String> = HashMap::new();
         async {
             for item in &access.authentication {

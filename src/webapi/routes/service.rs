@@ -1,5 +1,5 @@
 use super::{index, path};
-use super::super::{access, connectors, collections, handlers};
+use super::super::{access, connectors, entities::*, handlers};
 use bytes::buf::BufExt;
 use hyper::{error::Result, header, Body, Method, Request, Response, StatusCode};
 use serde::ser;
@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 pub async fn service_route(
     req: Request<Body>,
-    db: Arc<connectors::DataConnector>,
+    dc: Arc<connectors::DataConnector>,
     ac: Arc<access::AccessChecker>,
 ) -> Result<Response<Body>> {
     let (parts, body) = req.into_parts();
@@ -33,17 +33,17 @@ pub async fn service_route(
                 .unwrap());
         }
         Ok(match parts.uri.path() {
-            path::ROUTE_SIGHN_IN => resp(handlers::usr::signin().await),
-            path::ROUTE_SIGHN_UP => resp(handlers::usr::signup().await),
-            path::ROUTE_SUBSCRIPTION_ITEMS => resp(handlers::subscription::get(&db, None).await),
+            path::ROUTE_SIGHN_IN => resp(handlers::usr::signin(&dc).await),
+            path::ROUTE_SIGHN_UP => resp(handlers::usr::signup(&dc).await),
+            path::ROUTE_SUBSCRIPTION_ITEMS => resp(handlers::subscription::get(&dc, None).await),
             path::ROUTE_SUBSCRIPTION_GET => resp(
-                handlers::subscription::get(&db, serde_json::from_reader(reader).unwrap()).await,
+                handlers::subscription::get(&dc, serde_json::from_reader(reader).unwrap()).await,
             ),
             path::ROUTE_CAR_ON_DELETE_SUBSCRIBE => {
-                let subscription: collections::subscription::Subscription = serde_json::from_reader(reader).unwrap();
+                let subscription: subscription::Subscription = serde_json::from_reader(reader).unwrap();
                 resp(
                     handlers::subscription::subscribe(
-                        &db,
+                        &dc,
                         "car",
                         "ondelete",
                         &subscription.call_back.to_string(),
@@ -52,10 +52,10 @@ pub async fn service_route(
                 )
             }
             path::ROUTE_CAR_ON_DELETE_UNSUBSCRIBE => {
-                let subscription: collections::subscription::Subscription = serde_json::from_reader(reader).unwrap();
+                let subscription: subscription::Subscription = serde_json::from_reader(reader).unwrap();
                 resp(
                     handlers::subscription::unsubscribe(
-                        &db,
+                        &dc,
                         "car",
                         "ondelete",
                         &subscription.call_back.to_string(),
@@ -63,32 +63,32 @@ pub async fn service_route(
                     .await,
                 )
             }
-            path::ROUTE_USR_ITEMS => resp(handlers::usr::get(&db, None).await),
-            path::ROUTE_CAR_ITEMS => resp(handlers::car::get(&db, None).await),
+            path::ROUTE_USR_ITEMS => resp(handlers::usr::get(&dc, None).await),
+            path::ROUTE_CAR_ITEMS => resp(handlers::car::get(&dc, None).await),
             path::ROUTE_CAR_GET => {
                 let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
                 if !ids.is_none() {
-                    resp(handlers::car::get(&db, ids).await)
+                    resp(handlers::car::get(&dc, ids).await)
                 } else {
                     eprintln!("get_cars handler error: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
             path::ROUTE_CAR_ADD => {
-                let items: Option<Vec<collections::car::Car>> =
+                let items: Option<Vec<car::Car>> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if !items.is_none() {
-                    resp(handlers::car::add(&db, items.unwrap()).await)
+                    resp(handlers::car::add(&dc, items.unwrap()).await)
                 } else {
                     eprintln!("add_cars handler error: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
             path::ROUTE_CAR_UPDATE => {
-                let items: Option<Vec<collections::car::Car>> =
+                let items: Option<Vec<car::Car>> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if !items.is_none() {
-                    resp(handlers::car::update(&db, items.unwrap()).await)
+                    resp(handlers::car::update(&dc, items.unwrap()).await)
                 } else {
                     eprintln!("update_cars handler error: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
@@ -97,7 +97,7 @@ pub async fn service_route(
             path::ROUTE_CAR_DELETE => {
                 let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
                 if !ids.is_none() {
-                    resp(handlers::car::delete(&db, ids.unwrap()).await)
+                    resp(handlers::car::delete(&dc, ids.unwrap()).await)
                 } else {
                     eprintln!("delete_cars handler error: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));

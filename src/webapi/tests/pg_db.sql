@@ -41,14 +41,6 @@ VALUES('user1', 'pass1');
 /
 INSERT INTO usr
 (usr_name, usr_password)
-VALUES('user2', 'pass2');
-/
-INSERT INTO usr
-(usr_name, usr_password)
-VALUES('user3', 'pass3');
-/
-INSERT INTO usr
-(usr_name, usr_password)
 VALUES('test', '1234567890');
 /
 CREATE table subscription (
