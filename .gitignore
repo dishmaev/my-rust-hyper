@@ -5,4 +5,5 @@ log/
 Cargo.lock
 appsettings.dev.json
 test.txt
+todo.txt
 

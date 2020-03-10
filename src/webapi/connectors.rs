@@ -3,11 +3,12 @@ use super::collections;
 #[cfg(test)]
 use super::tests::fakes;
 use super::{entities, settings};
-#[cfg(feature = "mysql")]
+#[cfg(all(not(test), feature = "mysql"))]
 use sqlx::MySqlPool;
-#[cfg(feature = "postgres")]
+#[cfg(all(not(test), feature = "postgres"))]
 use sqlx::PgPool;
 use std::collections::HashMap;
+#[cfg(not(test))]
 use std::sync::Arc;
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
@@ -82,7 +83,7 @@ impl DataConnector {
             error.extend(_error.unwrap());
         }
         #[cfg(not(test))]
-        error.extend(DataConnector::get_errors(dp.get_errors().await?));
+        error.extend(DataConnector::errors_as_hashmap(dp.get_errors().await?));
         #[cfg(not(test))]
         let _dp_arc = Arc::new(dp);
         Ok(DataConnector {
@@ -106,12 +107,33 @@ impl DataConnector {
     }
 
     #[cfg(not(test))]
-    fn get_errors(items: Vec<entities::error::Error>) -> HashMap<isize, String> {
+    fn errors_as_hashmap(items: Vec<entities::error::Error>) -> HashMap<isize, String> {
         let mut error = HashMap::<isize, String>::new();
         for item in items {
             error.insert(item.id as isize, item.error_name);
         }
         error
+    }
+
+    pub fn get_errors(&self, ids: Option<Vec<i32>>) -> Result<Vec<entities::error::Error>> {
+        let is_ids = ids.is_some();
+        let mut ids_as_ht = HashMap::<isize, _>::new();
+        if is_ids {
+            for item in &ids.unwrap() {
+                ids_as_ht.insert(item.clone() as isize, 0);
+            }
+        }
+        let mut items = Vec::<entities::error::Error>::new();
+        for error in &self.error {
+            if is_ids && !ids_as_ht.contains_key(error.0) {
+                continue;
+            }
+            items.push(entities::error::Error {
+                id: (error.0.clone() as i32),
+                error_name: error.1.to_string(),
+            });
+        }
+        Ok(items)
     }
 }
 
