@@ -11,25 +11,25 @@ impl SubscriptionCollection {
     }
     pub async fn get(
         &self,
-        ids: Option<Vec<i32>>,
+        _ids: Option<Vec<i32>>,
     ) -> connectors::Result<Vec<subscription::Subscription>> {
         Ok(self.items.clone())
     }
 
     pub async fn subscribe(
         &self,
-        object_name: &str,
-        event_name: &str,
-        call_back: &str,
+        _object_name: &str,
+        _event_name: &str,
+        _call_back: &str,
     ) -> connectors::Result<errors::ErrorCode> {
         Ok(errors::ErrorCode::ReplyOk)
     }
 
     pub async fn unsubscribe(
         &self,
-        object_name: &str,
-        event_name: &str,
-        call_back: &str,
+        _object_name: &str,
+        _event_name: &str,
+        _call_back: &str,
     ) -> connectors::Result<errors::ErrorCode> {
         Ok(errors::ErrorCode::ReplyOk)
     }

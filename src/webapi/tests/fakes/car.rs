@@ -12,19 +12,19 @@ impl CarCollection {
         }];
         CarCollection { items: items }
     }
-    pub async fn get(&self, ids: Option<Vec<i32>>) -> connectors::Result<Vec<car::Car>> {
+    pub async fn get(&self, _ids: Option<Vec<i32>>) -> connectors::Result<Vec<car::Car>> {
         Ok(self.items.clone())
     }
     pub async fn add(
         &self,
-        items: Vec<car::Car>,
+        _items: Vec<car::Car>,
     ) -> connectors::Result<(errors::ErrorCode, Option<Vec<i32>>)> {
         Ok((errors::ErrorCode::ReplyOk, None))
     }
-    pub async fn update(&self, items: Vec<car::Car>) -> connectors::Result<errors::ErrorCode> {
+    pub async fn update(&self, _items: Vec<car::Car>) -> connectors::Result<errors::ErrorCode> {
         Ok(errors::ErrorCode::ReplyOk)
     }
-    pub async fn delete(&self, ids: Vec<i32>) -> connectors::Result<errors::ErrorCode> {
+    pub async fn delete(&self, _ids: Vec<i32>) -> connectors::Result<errors::ErrorCode> {
         Ok(errors::ErrorCode::ReplyOk)
     }
 }

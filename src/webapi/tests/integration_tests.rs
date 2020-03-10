@@ -1,4 +1,4 @@
-/*use super::super::{access, connectors, settings, routes::*};
+use super::super::{access, connectors, settings, routes::*};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Client, Error, Method, Request, Response, Server, StatusCode};
 use rand::prelude::Rng;
@@ -163,4 +163,4 @@ async fn test_route_err() {
 
     let resp = call_service(Method::POST, addr.port(), "/fake", Body::from("{}")).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-} */
+}

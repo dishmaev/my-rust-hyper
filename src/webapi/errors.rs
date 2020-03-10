@@ -5,6 +5,7 @@ use serde_repr::Serialize_repr;
 pub enum ErrorCode {
     ReplyOk = 0,
     ReplyErrorDatabase = -1,
+    #[cfg(not(test))]
     ReplyErrorNotFound = -100,
 }
 

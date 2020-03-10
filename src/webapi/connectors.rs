@@ -12,8 +12,10 @@ use std::sync::Arc;
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
+#[cfg(not(test))]
 pub struct ExpHelper;
 
+#[cfg(not(test))]
 impl ExpHelper {
     fn new() -> &'static ExpHelper {
         &ExpHelper {}
@@ -80,7 +82,7 @@ impl DataConnector {
             error.extend(_error.unwrap());
         }
         #[cfg(not(test))]
-        error.extend(DataConnector::merge_errors(dp.get_errors().await?));
+        error.extend(DataConnector::get_errors(dp.get_errors().await?));
         #[cfg(not(test))]
         let _dp_arc = Arc::new(dp);
         Ok(DataConnector {
@@ -103,7 +105,8 @@ impl DataConnector {
         })
     }
 
-    fn merge_errors(items: Vec<entities::error::Error>) -> HashMap<isize, String> {
+    #[cfg(not(test))]
+    fn get_errors(items: Vec<entities::error::Error>) -> HashMap<isize, String> {
         let mut error = HashMap::<isize, String>::new();
         for item in items {
             error.insert(item.id as isize, item.error_name);
@@ -112,6 +115,7 @@ impl DataConnector {
     }
 }
 
+#[cfg(not(test))]
 pub struct SqlDbProvider {
     #[cfg(feature = "postgres")]
     pub pool: Arc<PgPool>,
@@ -119,6 +123,7 @@ pub struct SqlDbProvider {
     pub pool: Arc<MySqlPool>,
 }
 
+#[cfg(not(test))]
 impl SqlDbProvider {
     pub async fn new(connection_string: &String) -> Result<SqlDbProvider> {
         debug!("connection string {}", connection_string);
