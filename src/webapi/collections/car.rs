@@ -38,7 +38,7 @@ impl CarCollection {
             let recs = sqlx::query(
                 &self
                     .exp_helper
-                    .get_select_in_exp("webapi.car", &ids.unwrap()),
+                    .get_select_int_exp("webapi.car", "id", &ids.unwrap()),
             )
             .fetch_all(&mut pool)
             .await?;
@@ -75,7 +75,7 @@ impl CarCollection {
                 Ok(rec) => ids.push(rec.id),
                 Err(e) => {
                     tx.rollback().await.unwrap();
-                    println!("add_cars db insert error: {}", e);
+                    error!("add_cars db insert: {}", e);
                     return Ok((errors::ErrorCode::ReplyErrorDatabase, None));
                 }
             };
@@ -88,7 +88,7 @@ impl CarCollection {
                 Ok(_) => {}
                 Err(e) => {
                     tx.rollback().await.unwrap();
-                    println!("add_cars db insert error: {}", e);
+                    error!("add_cars db insert: {}", e);
                     return Ok((errors::ErrorCode::ReplyErrorDatabase, None));
                 }
             };
@@ -100,7 +100,7 @@ impl CarCollection {
                 Ok(rec) => ids.push(rec.get(0)),
                 Err(e) => {
                     tx.rollback().await.unwrap();
-                    println!("add_cars db insert error: {}", e);
+                    error!("add_cars db insert: {}", e);
                     return Ok((errors::ErrorCode::ReplyErrorDatabase, None));
                 }
             };
@@ -108,7 +108,7 @@ impl CarCollection {
         match tx.commit().await {
             Ok(_) => {}
             Err(e) => {
-                println!("add_cars db commit error: {}", e);
+                error!("add_cars db commit: {}", e);
                 return Ok((errors::ErrorCode::ReplyErrorDatabase, None));
             }
         }
@@ -134,7 +134,7 @@ impl CarCollection {
             {
                 Ok(ret) => count += ret,
                 Err(e) => {
-                    println!("update_cars db update error: {}", e);
+                    error!("update_cars db update: {}", e);
                     tx.rollback().await?;
                     return Ok(errors::ErrorCode::ReplyErrorDatabase);
                 }
@@ -150,7 +150,7 @@ impl CarCollection {
             {
                 Ok(ret) => count += ret,
                 Err(e) => {
-                    println!("update_cars db update error: {}", e);
+                    error!("update_cars db update: {}", e);
                     tx.rollback().await?;
                     return Ok(errors::ErrorCode::ReplyErrorDatabase);
                 }
@@ -160,7 +160,7 @@ impl CarCollection {
             match tx.commit().await {
                 Ok(_) => {}
                 Err(e) => {
-                    println!("update_cars db commit error: {}", e);
+                    error!("update_cars db commit: {}", e);
                     return Ok(errors::ErrorCode::ReplyErrorDatabase);
                 }
             }
@@ -170,33 +170,34 @@ impl CarCollection {
             Ok(errors::ErrorCode::ReplyErrorNotFound)
         }
     }
-    pub async fn delete(&self, ids: Vec<i32>) -> connectors::Result<errors::ErrorCode> {
+    pub async fn remove(&self, ids: Vec<i32>) -> connectors::Result<errors::ErrorCode> {
         #[cfg(feature = "postgres")]
         let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
         let pool: &MySqlPool = &self.data_provider.pool;
         let mut tx = pool.begin().await?;
-        match sqlx::query(&self.exp_helper.get_delete_in_exp("webapi.car", &ids))
+        match sqlx::query(&self.exp_helper.get_delete_int_exp("webapi.car", "id", &ids))
             .execute(&mut tx)
             .await
         {
             Ok(ret) => {
                 if ids.len() == usize::try_from(ret).unwrap() {
                     match tx.commit().await {
-                        Ok(_) => {}
+                        Ok(_) => {
+                            Ok(errors::ErrorCode::ReplyOk)
+                        }
                         Err(e) => {
-                            println!("delete_cars db commit error: {}", e);
+                            error!("remove_cars db commit: {}", e);
                             return Ok(errors::ErrorCode::ReplyErrorDatabase);
                         }
                     }
-                    Ok(errors::ErrorCode::ReplyOk)
                 } else {
                     tx.rollback().await?;
                     Ok(errors::ErrorCode::ReplyErrorNotFound)
                 }
             }
             Err(e) => {
-                println!("delete_cars db delete error: {}", e);
+                error!("remove_cars db delete: {}", e);
                 tx.rollback().await?;
                 Ok(errors::ErrorCode::ReplyErrorDatabase)
             }

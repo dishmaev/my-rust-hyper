@@ -22,7 +22,7 @@ impl ExpHelper {
         &ExpHelper {}
     }
 
-    pub fn get_ids_as_exp(&self, ids: &Vec<i32>) -> String {
+    pub fn get_int_ids_as_exp(&self, ids: &Vec<i32>) -> String {
         let mut result: String = String::with_capacity(100);
         for item in ids {
             if result.len() != 0 {
@@ -33,19 +33,50 @@ impl ExpHelper {
         result
     }
 
-    pub fn get_select_in_exp(&self, table: &str, ids: &Vec<i32>) -> String {
+    pub fn get_str_ids_exp(&self, ids: &Vec<String>) -> String {
+        let mut result: String = String::with_capacity(100);
+        for item in ids {
+            if result.len() != 0 {
+                result.push(',');
+            }
+            result.push_str(&format!("'{}'", item.to_string()));
+        }
+        result
+    }
+
+    pub fn get_select_int_exp(&self, table: &str, field: &str, ids: &Vec<i32>) -> String {
         format!(
-            "SELECT * FROM {} WHERE id IN ({})",
+            "SELECT * FROM {} WHERE {} IN ({})",
             table,
-            self.get_ids_as_exp(ids)
+            field,
+            self.get_int_ids_as_exp(ids)
         )
     }
 
-    pub fn get_delete_in_exp(&self, table: &str, ids: &Vec<i32>) -> String {
+    pub fn get_delete_int_exp(&self, table: &str, field: &str, ids: &Vec<i32>) -> String {
         format!(
-            "DELETE FROM {} WHERE id IN ({})",
+            "DELETE FROM {} WHERE {} IN ({})",
             table,
-            self.get_ids_as_exp(ids)
+            field,
+            self.get_int_ids_as_exp(ids)
+        )
+    }
+
+    pub fn get_select_str_exp(&self, table: &str, field: &str, ids: &Vec<String>) -> String {
+        format!(
+            "SELECT * FROM {} WHERE {} IN ({})",
+            table,
+            field,
+            self.get_str_ids_exp(ids)
+        )
+    }
+
+    pub fn get_delete_str_exp(&self, table: &str, field: &str, ids: &Vec<String>) -> String {
+        format!(
+            "DELETE FROM {} WHERE {} IN ({})",
+            table,
+            field,
+            self.get_str_ids_exp(ids)
         )
     }
 }
@@ -61,9 +92,9 @@ pub struct DataConnector {
     #[cfg(test)]
     pub car: fakes::car::CarCollection,
     #[cfg(not(test))]
-    pub subscription: collections::subscription::SubscriptionCollection,
+    pub route: collections::route::RouteCollection,
     #[cfg(test)]
-    pub subscription: fakes::subscription::SubscriptionCollection,
+    pub route: fakes::route::RouteCollection,
 }
 
 impl DataConnector {
@@ -97,12 +128,12 @@ impl DataConnector {
             #[cfg(test)]
             car: fakes::car::CarCollection::new(),
             #[cfg(not(test))]
-            subscription: collections::subscription::SubscriptionCollection::new(
+            route: collections::route::RouteCollection::new(
                 _dp_arc.clone(),
                 &_exp_helper,
             ),
             #[cfg(test)]
-            subscription: fakes::subscription::SubscriptionCollection::new(),
+            route: fakes::route::RouteCollection::new(),
         })
     }
 

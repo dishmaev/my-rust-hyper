@@ -1,18 +1,20 @@
-use super::super::{access, connectors, entities::*, handlers};
+use super::super::{access, connectors, entities::*, executors, publishers, handlers, events};
 use super::{index, path};
 use bytes::buf::BufExt;
 use hyper::{error::Result, header, Body, Method, Request, Response, StatusCode};
 use serde::ser;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub async fn service_route(
     req: Request<Body>,
     dc: Arc<connectors::DataConnector>,
     ac: Arc<access::AccessChecker>,
+    ce: Arc<executors::CommandExecutor>,
+    ep: Arc<publishers::EventPublisher>,
 ) -> Result<Response<Body>> {
     let (parts, body) = req.into_parts();
     let reader = hyper::body::aggregate(body).await?.reader();
-
     if parts.method == Method::POST {
         let mut is_authorized = false;
         if parts.headers.get("Authorization").is_some() {
@@ -32,79 +34,140 @@ pub async fn service_route(
                 .body(Body::empty())
                 .unwrap());
         }
+        let params: HashMap<String, String> = parts
+            .uri
+            .query()
+            .map(|v| {
+                url::form_urlencoded::parse(v.as_bytes())
+                    .into_owned()
+                    .collect()
+            })
+            .unwrap_or_else(HashMap::new);
+        if !params.contains_key("CorrelationId") {
+            return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+        }
         Ok(match parts.uri.path() {
-            path::ROUTE_ERROR_ITEMS => resp(dc.get_errors(None)),
-            path::ROUTE_ERROR_GET => resp(dc.get_errors(serde_json::from_reader(reader).unwrap())),
-            path::ROUTE_SIGHN_IN => resp(handlers::usr::signin(&dc).await),
-            path::ROUTE_SIGHN_UP => resp(handlers::usr::signup(&dc).await),
-            path::ROUTE_SUBSCRIPTION_ITEMS => resp(handlers::subscription::get(&dc, None).await),
-            path::ROUTE_SUBSCRIPTION_GET => resp(
-                handlers::subscription::get(&dc, serde_json::from_reader(reader).unwrap()).await,
-            ),
-            path::ROUTE_CAR_ON_DELETE_SUBSCRIBE => {
-                let subscription: subscription::Subscription =
-                    serde_json::from_reader(reader).unwrap();
-                resp(
-                    handlers::subscription::subscribe(
-                        &dc,
-                        "car",
-                        "ondelete",
-                        &subscription.call_back.to_string(),
-                    )
-                    .await,
-                )
+            path::ERROR_ITEMS => resp(dc.get_errors(None)),
+            path::ERROR_GET => resp(dc.get_errors(serde_json::from_reader(reader).unwrap())),
+            path::USR_SIGHN_IN => resp(handlers::usr::signin(&dc).await),
+            path::USR_SIGHN_UP => resp(handlers::usr::signup(&dc).await),
+            path::ROUTE_ITEMS => resp(handlers::route::get(&dc, None).await),
+            path::ROUTE_COMMAND_ITEMS => resp(handlers::route::get_command(&dc, None).await),
+            path::ROUTE_SUBSCIBTION_ITEMS => {
+                resp(handlers::route::get_subscription(&dc, None).await)
             }
-            path::ROUTE_CAR_ON_DELETE_UNSUBSCRIBE => {
-                let subscription: subscription::Subscription =
-                    serde_json::from_reader(reader).unwrap();
-                resp(
-                    handlers::subscription::unsubscribe(
-                        &dc,
-                        "car",
-                        "ondelete",
-                        &subscription.call_back.to_string(),
-                    )
-                    .await,
-                )
+            path::ROUTE_GET => {
+                let services: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
+                if services.is_some() {
+                    resp(handlers::route::get(&dc, services).await)
+                } else {
+                    error!("get_routes handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
             }
-            path::ROUTE_USR_ITEMS => resp(handlers::usr::get(&dc, None).await),
-            path::ROUTE_CAR_ITEMS => resp(handlers::car::get(&dc, None).await),
-            path::ROUTE_CAR_GET => {
+            path::ROUTE_COMMAND_GET => {
+                let services: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
+                if services.is_some() {
+                    resp(handlers::route::get_command(&dc, services).await)
+                } else {
+                    error!("get_route_commands handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
+            path::ROUTE_SUBSCIBTION_GET => {
+                let services: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
+                if services.is_some() {
+                    resp(handlers::route::get_subscription(&dc, services).await)
+                } else {
+                    error!("get_route_subscriptions handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
+            path::ROUTE_ADD => {
+                let items: Option<Vec<route::Route>> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if items.is_some() {
+                    resp(handlers::route::add(&dc, items.unwrap()).await)
+                } else {
+                    error!("add_routes handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
+            path::ROUTE_REMOVE => {
+                let ids: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
+                if ids.is_some() {
+                    resp(handlers::route::remove(&dc, ids.unwrap()).await)
+                } else {
+                    error!("remove_routes handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            },
+            path::ROUTE_EVENT_ON_SERVICE_UNAVAILABLE => {
+                let items: Option<Vec<events::route::OnServiceUnavailable>> = serde_json::from_reader(reader).unwrap_or(None);
+                if items.is_some() {
+                    resp(handlers::route::on_service_unavailable(&dc, items.unwrap()).await)
+                } else {
+                    error!("on_service_unavailable handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            },
+            path::ROUTE_EVENT_ON_ROUTE_COMMAND_UPDATE => {
+                let items: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
+                if items.is_some() {
+                    resp(handlers::route::on_route_command_update(&dc, &ce, items.unwrap()).await)
+                } else {
+                    error!("on_route_command_update handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            },
+            path::ROUTE_EVENT_ON_ROUTE_SUBCRIPTION_UPDATE => {
+                let items: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
+                if items.is_some() {
+                    resp(handlers::route::on_route_subscription_update(&dc, &ep, items.unwrap()).await)
+                } else {
+                    error!("on_route_subscription_update handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            },
+            path::USR_ITEMS => resp(handlers::usr::get(&dc, None).await),
+            path::CAR_ITEMS => resp(handlers::car::get(&dc, None).await),
+            path::CAR_GET => {
                 let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
                 if ids.is_some() {
                     resp(handlers::car::get(&dc, ids).await)
                 } else {
-                    eprintln!("get_cars handler error: bad body");
+                    error!("get_cars handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_CAR_ADD => {
+            path::CAR_ADD => {
                 let items: Option<Vec<car::Car>> = serde_json::from_reader(reader).unwrap_or(None);
                 if items.is_some() {
                     resp(handlers::car::add(&dc, items.unwrap()).await)
                 } else {
-                    eprintln!("add_cars handler error: bad body");
+                    error!("add_cars handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_CAR_UPDATE => {
+            path::CAR_UPDATE => {
                 let items: Option<Vec<car::Car>> = serde_json::from_reader(reader).unwrap_or(None);
                 if items.is_some() {
-                    resp(handlers::car::update(&dc, items.unwrap()).await)
+                    resp(handlers::car::update(&dc, &ce, items.unwrap()).await)
                 } else {
-                    eprintln!("update_cars handler error: bad body");
+                    error!("update_cars handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_CAR_DELETE => {
+            path::CAR_REMOVE => {
                 let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
                 if ids.is_some() {
-                    resp(handlers::car::delete(&dc, ids.unwrap()).await)
+                    resp(handlers::car::remove(&dc, ids.unwrap()).await)
                 } else {
-                    eprintln!("delete_cars handler error: bad body");
+                    error!("remove_cars handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
-            }
+            },
+            path::HELTH => return Ok(resp_with_code(StatusCode::OK)),
             _ => return Ok(resp_with_code(StatusCode::NOT_FOUND)),
         })
     } else if parts.method == Method::GET {
@@ -129,7 +192,7 @@ where
             .body(Body::from(serde_json::to_string(&items).unwrap()))
             .unwrap(),
         Err(e) => {
-            eprintln!("handler error: {}", e);
+            error!("handler: {}", e);
             resp_with_code(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

@@ -1,4 +1,5 @@
 pub mod entities;
+pub mod events;
 pub mod access;
 pub mod routes;
 pub mod errors;
@@ -9,6 +10,9 @@ pub mod handlers;
 pub mod collections;
 
 pub mod connectors;
+pub mod router;
+pub mod publishers;
+pub mod executors;
 
 #[cfg(test)]
 mod tests;

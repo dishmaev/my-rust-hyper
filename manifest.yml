@@ -7,3 +7,5 @@ applications:
     services: []
     env:
       MY_BIN_HOST: 0.0.0.0
+      MY_APP_SETTINGS: appsettings.json
+      MY_LOG_SETTINGS: log4rs.yml

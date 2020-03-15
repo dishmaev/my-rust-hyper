@@ -10,7 +10,7 @@ use std::env;
 use std::fs;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use webapi::{access, connectors, routes, settings};
+use webapi::{access, connectors, executors, publishers, router, routes, settings};
 
 #[tokio::main]
 async fn main() {
@@ -34,50 +34,82 @@ async fn main() {
 
     info!("starting up");
 
-    let host: Option<String> = {
+    let host_name: Option<String> = {
         match env::var(ENV_HOST).is_ok() {
             true => Some(env::var(ENV_HOST).unwrap()),
             _ => None,
         }
     };
 
-    let port: Option<u16> = {
+    let port_name: Option<u16> = {
         match env::var(ENV_PORT).is_ok() {
             true => Some(env::var(ENV_PORT).unwrap().parse::<u16>().unwrap()),
             _ => None,
         }
     };
 
-    let addr = format!(
+    let host = format!(
         "{}:{}",
-        host.unwrap_or(String::from(DEFAULT_HOST)),
-        port.unwrap_or(DEFAULT_PORT)
-    )
-    .parse::<SocketAddr>()
-    .unwrap();
+        host_name.unwrap_or(String::from(DEFAULT_HOST)),
+        port_name.unwrap_or(DEFAULT_PORT)
+    );
+
+    let addr = host.parse::<SocketAddr>().unwrap();
 
     let app_setting_file: String =
         env::var(ENV_APP_SETTINGS).unwrap_or(String::from(DEFAULT_APP_SETTINGS));
+
     let app_settings: settings::AppSettings =
         serde_json::from_str(&fs::read_to_string(app_setting_file).unwrap()).unwrap();
 
-    let data_connector =
-        connectors::DataConnector::new(app_settings._error, Some(app_settings._pg_db), Some(app_settings._my_sql_db))
-            .await
-            .expect("error while initialize data connector");
+    let data_connector = connectors::DataConnector::new(
+        app_settings._error,
+        Some(app_settings._pg_db),
+        Some(app_settings._my_sql_db),
+    )
+    .await
+    .expect("error while data connector initialize");
     let access_checker = access::AccessChecker::from_data_connector(&data_connector)
         .await
-        .expect("error while initialize access checker");
+        .expect("error while access checker initialize");
+
+    let router = if app_settings._router.local.is_some() {
+        router::Router::from_local(&data_connector, app_settings._router.local.unwrap(), app_settings._service, &host)
+            .await
+            .expect("error while router initialize")
+    } else {
+        router::Router::from_remote(
+            app_settings._router.http_from,
+            app_settings._router.mq_from,
+            app_settings._service,
+            &host
+        )
+        .await
+        .expect("error while router initialize")
+    };
+    let command_executor = executors::CommandExecutor::new()
+        .await
+        .expect("error while command executor initialize");
+
+    let event_publisher = publishers::EventPublisher::new()
+        .await
+        .expect("error while event publisher initialize");
 
     let data_connector_arc = Arc::new(data_connector);
     let access_checker_arc = Arc::new(access_checker);
+    let command_executor_arc = Arc::new(command_executor);
+    let event_publisher_arc = Arc::new(event_publisher);
+
+    let route_dc_arc = data_connector_arc.clone();
 
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
+        let ce = command_executor_arc.clone();
+        let ep = event_publisher_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                routes::service::service_route(req, dc.clone(), ac.clone())
+                routes::service::service_route(req, dc.clone(), ac.clone(), ce.clone(), ep.clone())
             }))
         }
     });
@@ -85,8 +117,12 @@ async fn main() {
     let graceful = server.with_graceful_shutdown(shutdown_signal());
 
     if let Err(e) = graceful.await {
-        eprintln!("server error: {}", e);
+        error!("server: {}", e);
     } else {
+        router
+            .shutdown(route_dc_arc)
+            .await
+            .expect("error while router shutdown");
         info!("shutdown");
     }
 }

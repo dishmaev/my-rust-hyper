@@ -43,12 +43,47 @@ INSERT INTO usr
 (usr_name, usr_password)
 VALUES('test', '1234567890');
 /
-CREATE table subscription (
-	id int4 NOT NULL GENERATED ALWAYS AS IDENTITY,
-	object_name text NOT NULL,
-	event_name text NOT NULL,
-	call_back text NOT NULL
+CREATE table service (
+	"name" text NOT NULL,
+	"priority" int4 NOT NULL,
+	http_helth text NOT NULL,
+	mq_helth text NOT NULL,
+	CONSTRAINT service_pk PRIMARY KEY ("name")
 );
 /
-CREATE UNIQUE INDEX subs_obj_env_cb_idx ON subscription USING btree (object_name, event_name, call_back);
+CREATE table command (
+	service_name text NOT NULL,
+	object_type text NOT NULL,
+	http_to text NULL,
+	mq_to text NULL,
+	CONSTRAINT command_pk PRIMARY KEY (service_name, object_type),
+	CONSTRAINT command_service_name_fk FOREIGN KEY (service_name) REFERENCES webapi.service("name")
+);
+/
+CREATE table subscription (
+	service_name text NOT NULL,
+	object_type text NOT NULL,
+	http_to text NULL,
+	mq_to text NULL,
+	CONSTRAINT subscription_pk PRIMARY KEY (service_name, object_type),
+	CONSTRAINT subscription_service_name_fk FOREIGN KEY (service_name) REFERENCES webapi.service("name")
+);
+/
+CREATE OR REPLACE VIEW v_command
+AS SELECT c.service_name,
+    s.priority,
+    c.object_type,
+    c.http_to,
+    c.mq_to
+   FROM webapi.command c
+     JOIN webapi.service s ON s.name = c.service_name;
+/
+CREATE OR REPLACE VIEW v_subscription
+AS SELECT ss.service_name,
+    sv.priority,
+    ss.object_type,
+    ss.http_to,
+    ss.mq_to
+   FROM webapi.subscription ss
+     JOIN webapi.service sv ON sv.name = ss.service_name;
 /

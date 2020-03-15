@@ -3,6 +3,7 @@
 .vscode/
 log/
 Cargo.lock
+appsettings.json
 appsettings.dev.json
 test.txt
 todo.txt

@@ -35,7 +35,7 @@ impl UsrCollection {
             let recs = sqlx::query(
                 &self
                     .exp_helper
-                    .get_select_in_exp("webapi.usr", &ids.unwrap()),
+                    .get_select_int_exp("webapi.usr", "id", &ids.unwrap()),
             )
             .fetch_all(&mut pool)
             .await?;

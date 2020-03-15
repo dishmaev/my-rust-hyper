@@ -1,4 +1,4 @@
-use super::super::{connectors, entities::car, errors};
+use super::super::{connectors, executors, entities::car, errors};
 use super::models;
 
 pub async fn get(
@@ -11,19 +11,22 @@ pub async fn get(
 pub async fn add(
     dc: &connectors::DataConnector,
     items: Vec<car::Car>,
-) -> connectors::Result<models::AddReply> {
+) -> connectors::Result<models::AddIntIdsReply> {
     let (result, ids) = dc.car.add(items).await?;
     if result == errors::ErrorCode::ReplyOk {
-        Ok(get_ok_add_reply!(ids.unwrap()))
+        Ok(get_ok_add_int_ids_reply!(ids.unwrap()))
     } else {
-        Ok(get_error_add_reply!(&result, dc.error))
+        Ok(get_error_add_int_ids_reply!(&result, dc.error))
     }
 }
 
 pub async fn update(
     dc: &connectors::DataConnector,
+    ce: &executors::CommandExecutor,
     items: Vec<car::Car>,
 ) -> connectors::Result<models::Reply> {
+    let c: models::Reply = ce.call("test".to_string(), None::<car::Car>).await?;
+    debug!("{}", c.error_code.as_isize());
     let result: errors::ErrorCode = dc.car.update(items).await?;
     if result == errors::ErrorCode::ReplyOk {
         Ok(get_ok_reply!())
@@ -32,11 +35,11 @@ pub async fn update(
     }
 }
 
-pub async fn delete(
+pub async fn remove(
     dc: &connectors::DataConnector,
     ids: Vec<i32>,
 ) -> connectors::Result<models::Reply> {
-    let result: errors::ErrorCode = dc.car.delete(ids).await?;
+    let result: errors::ErrorCode = dc.car.remove(ids).await?;
     if result == errors::ErrorCode::ReplyOk {
         Ok(get_ok_reply!())
     } else {

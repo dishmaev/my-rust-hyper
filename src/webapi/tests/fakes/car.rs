@@ -24,7 +24,7 @@ impl CarCollection {
     pub async fn update(&self, _items: Vec<car::Car>) -> connectors::Result<errors::ErrorCode> {
         Ok(errors::ErrorCode::ReplyOk)
     }
-    pub async fn delete(&self, _ids: Vec<i32>) -> connectors::Result<errors::ErrorCode> {
+    pub async fn remove(&self, _ids: Vec<i32>) -> connectors::Result<errors::ErrorCode> {
         Ok(errors::ErrorCode::ReplyOk)
     }
 }
