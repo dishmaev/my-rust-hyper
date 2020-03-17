@@ -9,7 +9,9 @@ use hyper::{Error, Server};
 use std::env;
 use std::fs;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use webapi::{access, connectors, executors, publishers, router, routes, settings};
 
 #[tokio::main]
@@ -32,7 +34,7 @@ async fn main() {
         env::var(ENV_LOG_SETTINGS).unwrap_or(String::from(DEFAULT_LOG_SETTINGS));
     log4rs::init_file(log_setting_file, Default::default()).unwrap();
 
-    info!("starting up");
+    info!("initializing...");
 
     let host_name: Option<String> = {
         match env::var(ENV_HOST).is_ok() {
@@ -74,15 +76,20 @@ async fn main() {
         .expect("error while access checker initialize");
 
     let router = if app_settings._router.local.is_some() {
-        router::Router::from_local(&data_connector, app_settings._router.local.unwrap(), app_settings._service, &host)
-            .await
-            .expect("error while router initialize")
+        router::Router::from_local(
+            &data_connector,
+            app_settings._router.local.unwrap(),
+            app_settings._service,
+            &host,
+        )
+        .await
+        .expect("error while router initialize")
     } else {
         router::Router::from_remote(
             app_settings._router.http_from,
             app_settings._router.mq_from,
             app_settings._service,
-            &host
+            &host,
         )
         .await
         .expect("error while router initialize")
@@ -99,36 +106,93 @@ async fn main() {
     let access_checker_arc = Arc::new(access_checker);
     let command_executor_arc = Arc::new(command_executor);
     let event_publisher_arc = Arc::new(event_publisher);
+    let router_arc = Arc::new(router);
 
-    let route_dc_arc = data_connector_arc.clone();
+    let local_rt_arc = router_arc.clone();
+    let local_dc_arc = data_connector_arc.clone();
 
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
+        let rt = router_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                routes::service::service_route(req, dc.clone(), ac.clone(), ce.clone(), ep.clone())
+                routes::service::service_route(
+                    req,
+                    dc.clone(),
+                    ac.clone(),
+                    ce.clone(),
+                    ep.clone(),
+                    rt.clone(),
+                )
             }))
         }
     });
     let server = Server::bind(&addr).serve(make_svc);
-    let graceful = server.with_graceful_shutdown(shutdown_signal());
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    let event_publisher_cancel_flag = cancel_flag.clone();
+    let command_executer_cancel_flag = cancel_flag.clone();
+    let graceful = server.with_graceful_shutdown(async { shutdown_signal(cancel_flag).await });
 
-    if let Err(e) = graceful.await {
-        error!("server: {}", e);
+    info!("starting up");
+    debug!("start hyper server");
+    let res = futures::join!(
+        graceful,
+        tokio::spawn(async move {
+            debug!("start event publisher");
+            if let Err(e) = event_publisher_task(event_publisher_cancel_flag).await {
+                error!("event publisher: {}", e);
+                return "error";
+            }
+            "ok"
+        }),
+        tokio::spawn(async move {
+            debug!("start command executor");
+            if let Err(e) = command_executor_task(command_executer_cancel_flag).await {
+                error!("command executor: {}", e);
+                return "error";
+            }
+            "ok"
+        })
+    );
+    debug!("stop command executor with result: {}", (res.2.unwrap()));
+    debug!("stop event publisher with result: {}", (res.1.unwrap()));
+    if let Err(e) = res.0 {
+        error!("hyper server: {}", e);
+        debug!("stop hyper server with result: error");
     } else {
-        router
-            .shutdown(route_dc_arc)
+        debug!("stop hyper server with result: ok");
+        local_rt_arc
+            .shutdown(local_dc_arc)
             .await
             .expect("error while router shutdown");
-        info!("shutdown");
     }
+    info!("shutdown");
 }
 
-async fn shutdown_signal() {
+async fn shutdown_signal(cancel_flag: Arc<AtomicBool>) {
     tokio::signal::ctrl_c()
         .await
         .expect("failed to install CTRL+C signal handler");
+    cancel_flag.store(true, Ordering::SeqCst);
+}
+
+async fn event_publisher_task(cancel_flag: Arc<AtomicBool>) -> connectors::Result<()> {
+    while !cancel_flag.load(Ordering::SeqCst) {
+        std::thread::sleep(Duration::from_secs(2));
+        debug!("event publisher in action");
+    }
+    debug!("event publisher exit");
+    Ok({})
+}
+
+async fn command_executor_task(cancel_flag: Arc<AtomicBool>) -> connectors::Result<()> {
+    while !cancel_flag.load(Ordering::SeqCst) {
+        std::thread::sleep(Duration::from_secs(3));
+        debug!("command executor in action");
+    }
+    debug!("command executor exit");
+    Ok({})
 }

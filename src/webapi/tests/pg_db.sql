@@ -48,6 +48,7 @@ CREATE table service (
 	"priority" int4 NOT NULL,
 	http_helth text NOT NULL,
 	mq_helth text NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, 
 	CONSTRAINT service_pk PRIMARY KEY ("name")
 );
 /

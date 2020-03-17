@@ -1,4 +1,4 @@
-use super::super::{connectors, entities, errors, events, executors, publishers};
+use super::super::{connectors, entities, errors, events, executors, publishers, router};
 use super::models;
 
 pub async fn get(
@@ -48,6 +48,7 @@ pub async fn remove(
 
 pub async fn on_service_unavailable(
     dc: &connectors::DataConnector,
+    rt: &router::Router,
     ids: Vec<events::route::OnServiceUnavailable>,
 ) -> connectors::Result<models::Reply> {
     Ok(get_ok_reply!())

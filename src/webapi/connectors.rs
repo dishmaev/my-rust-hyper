@@ -128,10 +128,7 @@ impl DataConnector {
             #[cfg(test)]
             car: fakes::car::CarCollection::new(),
             #[cfg(not(test))]
-            route: collections::route::RouteCollection::new(
-                _dp_arc.clone(),
-                &_exp_helper,
-            ),
+            route: collections::route::RouteCollection::new(_dp_arc.clone(), &_exp_helper),
             #[cfg(test)]
             route: fakes::route::RouteCollection::new(),
         })

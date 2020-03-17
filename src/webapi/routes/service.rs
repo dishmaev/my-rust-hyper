@@ -1,4 +1,6 @@
-use super::super::{access, connectors, entities::*, executors, publishers, handlers, events};
+use super::super::{
+    access, connectors, entities::*, events, executors, handlers, publishers, router,
+};
 use super::{index, path};
 use bytes::buf::BufExt;
 use hyper::{error::Result, header, Body, Method, Request, Response, StatusCode};
@@ -12,6 +14,7 @@ pub async fn service_route(
     ac: Arc<access::AccessChecker>,
     ce: Arc<executors::CommandExecutor>,
     ep: Arc<publishers::EventPublisher>,
+    rt: Arc<router::Router>,
 ) -> Result<Response<Body>> {
     let (parts, body) = req.into_parts();
     let reader = hyper::body::aggregate(body).await?.reader();
@@ -101,16 +104,17 @@ pub async fn service_route(
                     error!("remove_routes handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
-            },
+            }
             path::ROUTE_EVENT_ON_SERVICE_UNAVAILABLE => {
-                let items: Option<Vec<events::route::OnServiceUnavailable>> = serde_json::from_reader(reader).unwrap_or(None);
+                let items: Option<Vec<events::route::OnServiceUnavailable>> =
+                    serde_json::from_reader(reader).unwrap_or(None);
                 if items.is_some() {
-                    resp(handlers::route::on_service_unavailable(&dc, items.unwrap()).await)
+                    resp(handlers::route::on_service_unavailable(&dc, &rt, items.unwrap()).await)
                 } else {
                     error!("on_service_unavailable handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
-            },
+            }
             path::ROUTE_EVENT_ON_ROUTE_COMMAND_UPDATE => {
                 let items: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
                 if items.is_some() {
@@ -119,16 +123,19 @@ pub async fn service_route(
                     error!("on_route_command_update handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
-            },
+            }
             path::ROUTE_EVENT_ON_ROUTE_SUBCRIPTION_UPDATE => {
                 let items: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
                 if items.is_some() {
-                    resp(handlers::route::on_route_subscription_update(&dc, &ep, items.unwrap()).await)
+                    resp(
+                        handlers::route::on_route_subscription_update(&dc, &ep, items.unwrap())
+                            .await,
+                    )
                 } else {
                     error!("on_route_subscription_update handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
-            },
+            }
             path::USR_ITEMS => resp(handlers::usr::get(&dc, None).await),
             path::CAR_ITEMS => resp(handlers::car::get(&dc, None).await),
             path::CAR_GET => {
@@ -166,7 +173,7 @@ pub async fn service_route(
                     error!("remove_cars handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
-            },
+            }
             path::HELTH => return Ok(resp_with_code(StatusCode::OK)),
             _ => return Ok(resp_with_code(StatusCode::NOT_FOUND)),
         })

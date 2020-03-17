@@ -1,4 +1,4 @@
-use super::super::{access, connectors, executors, publishers, routes::*, settings};
+use super::super::{access, connectors, executors, publishers, router, routes::*, settings};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Client, Error, Method, Request, Response, Server, StatusCode};
 use rand::prelude::Rng;
@@ -19,6 +19,7 @@ async fn get_settings() -> (
     Arc<access::AccessChecker>,
     Arc<executors::CommandExecutor>,
     Arc<publishers::EventPublisher>,
+    Arc<router::Router>,
 ) {
     let mut rng = rand::thread_rng();
     let app_settings: settings::AppSettings =
@@ -33,6 +34,16 @@ async fn get_settings() -> (
     let access_checker = access::AccessChecker::_from_app_settings(&app_settings._access.unwrap())
         .await
         .expect("error while initialize access checker");
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), rng.gen_range(15000, 25000));
+    let host = format!("{}:{}", &addr.ip(), &addr.port());
+    let router = router::Router::from_local(
+        &data_connector,
+        app_settings._router.local.unwrap(),
+        app_settings._service,
+        &host,
+    )
+    .await
+    .expect("error while router initialize");
     let command_executor = executors::CommandExecutor::new()
         .await
         .expect("error while initialize command executor");
@@ -43,11 +54,12 @@ async fn get_settings() -> (
         .await
         .expect("error while event publisher initialize");
     (
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), rng.gen_range(15000, 25000)),
+        addr,
         Arc::new(data_connector),
         Arc::new(access_checker),
         Arc::new(command_executor),
         Arc::new(event_publisher),
+        Arc::new(router),
     )
 }
 
@@ -67,15 +79,30 @@ async fn call_service(method: hyper::Method, port: u16, path: &str, body: Body) 
 
 #[tokio::test(threaded_scheduler)]
 async fn test_index_ok() {
-    let (addr, data_connector_arc, access_checker_arc, command_executor_arc, event_publisher_arc) = get_settings().await;
+    let (
+        addr,
+        data_connector_arc,
+        access_checker_arc,
+        command_executor_arc,
+        event_publisher_arc,
+        router_arc,
+    ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
+        let rt = router_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                service::service_route(req, dc.clone(), ac.clone(), ce.clone(), ep.clone())
+                service::service_route(
+                    req,
+                    dc.clone(),
+                    ac.clone(),
+                    ce.clone(),
+                    ep.clone(),
+                    rt.clone(),
+                )
             }))
         }
     });
@@ -93,15 +120,30 @@ async fn test_index_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_spec_json_ok() {
-    let (addr, data_connector_arc, access_checker_arc, command_executor_arc, event_publisher_arc) = get_settings().await;
+    let (
+        addr,
+        data_connector_arc,
+        access_checker_arc,
+        command_executor_arc,
+        event_publisher_arc,
+        router_arc,
+    ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
+        let rt = router_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                service::service_route(req, dc.clone(), ac.clone(), ce.clone(), ep.clone())
+                service::service_route(
+                    req,
+                    dc.clone(),
+                    ac.clone(),
+                    ce.clone(),
+                    ep.clone(),
+                    rt.clone(),
+                )
             }))
         }
     });
@@ -119,15 +161,30 @@ async fn test_spec_json_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_spec_yaml_ok() {
-    let (addr, data_connector_arc, access_checker_arc, command_executor_arc, event_publisher_arc) = get_settings().await;
+    let (
+        addr,
+        data_connector_arc,
+        access_checker_arc,
+        command_executor_arc,
+        event_publisher_arc,
+        router_arc,
+    ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
+        let rt = router_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                service::service_route(req, dc.clone(), ac.clone(), ce.clone(), ep.clone())
+                service::service_route(
+                    req,
+                    dc.clone(),
+                    ac.clone(),
+                    ce.clone(),
+                    ep.clone(),
+                    rt.clone(),
+                )
             }))
         }
     });
@@ -145,15 +202,30 @@ async fn test_spec_yaml_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_route_ok() {
-    let (addr, data_connector_arc, access_checker_arc, command_executor_arc, event_publisher_arc) = get_settings().await;
+    let (
+        addr,
+        data_connector_arc,
+        access_checker_arc,
+        command_executor_arc,
+        event_publisher_arc,
+        router_arc,
+    ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
+        let rt = router_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                service::service_route(req, dc.clone(), ac.clone(), ce.clone(), ep.clone())
+                service::service_route(
+                    req,
+                    dc.clone(),
+                    ac.clone(),
+                    ce.clone(),
+                    ep.clone(),
+                    rt.clone(),
+                )
             }))
         }
     });
@@ -173,15 +245,30 @@ async fn test_route_ok() {
 
 #[tokio::test(threaded_scheduler)]
 async fn test_route_err() {
-    let (addr, data_connector_arc, access_checker_arc, command_executor_arc, event_publisher_arc) = get_settings().await;
+    let (
+        addr,
+        data_connector_arc,
+        access_checker_arc,
+        command_executor_arc,
+        event_publisher_arc,
+        router_arc,
+    ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
+        let rt = router_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
-                service::service_route(req, dc.clone(), ac.clone(), ce.clone(), ep.clone())
+                service::service_route(
+                    req,
+                    dc.clone(),
+                    ac.clone(),
+                    ce.clone(),
+                    ep.clone(),
+                    rt.clone(),
+                )
             }))
         }
     });
