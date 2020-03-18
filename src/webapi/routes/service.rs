@@ -49,6 +49,7 @@ pub async fn service_route(
         if !params.contains_key("CorrelationId") {
             return Ok(resp_with_code(StatusCode::BAD_REQUEST));
         }
+        let correlation_id = params.get("CorrelationId");
         Ok(match parts.uri.path() {
             path::ERROR_ITEMS => resp(dc.get_errors(None)),
             path::ERROR_GET => resp(dc.get_errors(serde_json::from_reader(reader).unwrap())),
@@ -90,7 +91,11 @@ pub async fn service_route(
                 let items: Option<Vec<route::Route>> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if items.is_some() {
-                    resp(handlers::route::add(&dc, items.unwrap()).await)
+                    let res = handlers::route::add(&dc, items.unwrap()).await;
+                    if res.as_ref().unwrap().is_ok() {
+                        ep.as_ref().send(res.as_ref().unwrap().get_ids());
+                    }
+                    resp(res)
                 } else {
                     error!("add_routes handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
@@ -99,7 +104,12 @@ pub async fn service_route(
             path::ROUTE_REMOVE => {
                 let ids: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
                 if ids.is_some() {
-                    resp(handlers::route::remove(&dc, ids.unwrap()).await)
+                    let ids_for_event = ids.clone().unwrap();
+                    let res = handlers::route::remove(&dc, ids.unwrap()).await;
+                    if res.as_ref().unwrap().is_ok() {
+                        ep.as_ref().send(ids_for_event);
+                    }
+                    resp(res)
                 } else {
                     error!("remove_routes handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
@@ -115,24 +125,12 @@ pub async fn service_route(
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_EVENT_ON_ROUTE_COMMAND_UPDATE => {
+            path::ROUTE_EVENT_ON_ROUTE_UPDATE => {
                 let items: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
                 if items.is_some() {
-                    resp(handlers::route::on_route_command_update(&dc, &ce, items.unwrap()).await)
+                    resp(handlers::route::on_route_update(&dc, &ce, items.unwrap()).await)
                 } else {
-                    error!("on_route_command_update handler: bad body");
-                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
-                }
-            }
-            path::ROUTE_EVENT_ON_ROUTE_SUBCRIPTION_UPDATE => {
-                let items: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
-                if items.is_some() {
-                    resp(
-                        handlers::route::on_route_subscription_update(&dc, &ep, items.unwrap())
-                            .await,
-                    )
-                } else {
-                    error!("on_route_subscription_update handler: bad body");
+                    error!("on_route_update handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }

@@ -54,17 +54,9 @@ pub async fn on_service_unavailable(
     Ok(get_ok_reply!())
 }
 
-pub async fn on_route_command_update(
+pub async fn on_route_update(
     dc: &connectors::DataConnector,
     ce: &executors::CommandExecutor,
-    services: Vec<String>,
-) -> connectors::Result<models::Reply> {
-    Ok(get_ok_reply!())
-}
-
-pub async fn on_route_subscription_update(
-    dc: &connectors::DataConnector,
-    ep: &publishers::EventPublisher,
     services: Vec<String>,
 ) -> connectors::Result<models::Reply> {
     Ok(get_ok_reply!())

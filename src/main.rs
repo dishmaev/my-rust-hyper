@@ -182,7 +182,7 @@ async fn shutdown_signal(cancel_flag: Arc<AtomicBool>) {
 async fn event_publisher_task(cancel_flag: Arc<AtomicBool>) -> connectors::Result<()> {
     while !cancel_flag.load(Ordering::SeqCst) {
         std::thread::sleep(Duration::from_secs(2));
-        debug!("event publisher in action");
+        // debug!("event publisher in action");
     }
     debug!("event publisher exit");
     Ok({})
@@ -191,7 +191,7 @@ async fn event_publisher_task(cancel_flag: Arc<AtomicBool>) -> connectors::Resul
 async fn command_executor_task(cancel_flag: Arc<AtomicBool>) -> connectors::Result<()> {
     while !cancel_flag.load(Ordering::SeqCst) {
         std::thread::sleep(Duration::from_secs(3));
-        debug!("command executor in action");
+        // debug!("command executor in action");
     }
     debug!("command executor exit");
     Ok({})
