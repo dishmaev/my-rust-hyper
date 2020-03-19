@@ -12,7 +12,10 @@ pub struct UsrCollection {
 }
 
 impl UsrCollection {
-    pub fn new(data_provider: Arc<connectors::SqlDbProvider>, helper: &'static connectors::ExpHelper) -> UsrCollection {
+    pub fn new(
+        data_provider: Arc<connectors::SqlDbProvider>,
+        helper: &'static connectors::ExpHelper,
+    ) -> UsrCollection {
         UsrCollection {
             data_provider: data_provider,
             exp_helper: &helper,
@@ -32,11 +35,11 @@ impl UsrCollection {
             .fetch_all(&mut pool)
             .await?)
         } else {
-            let recs = sqlx::query(
-                &self
-                    .exp_helper
-                    .get_select_int_exp("webapi.usr", "id", &ids.unwrap()),
-            )
+            let recs = sqlx::query(&self.exp_helper.get_select_int_exp(
+                "webapi.usr",
+                "id",
+                &ids.unwrap(),
+            ))
             .fetch_all(&mut pool)
             .await?;
             let mut items = Vec::<usr::Usr>::new();

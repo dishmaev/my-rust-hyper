@@ -7,6 +7,7 @@ use hyper::{error::Result, header, Body, Method, Request, Response, StatusCode};
 use serde::ser;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 pub async fn service_route(
     req: Request<Body>,
@@ -15,7 +16,10 @@ pub async fn service_route(
     ce: Arc<executors::CommandExecutor>,
     ep: Arc<publishers::EventPublisher>,
     rt: Arc<router::Router>,
+    mut es: mpsc::Sender<String>,
+    mut cs: mpsc::Sender<String>,
 ) -> Result<Response<Body>> {
+    es.send("hello".to_string()).await.unwrap();
     let (parts, body) = req.into_parts();
     let reader = hyper::body::aggregate(body).await?.reader();
     if parts.method == Method::POST {

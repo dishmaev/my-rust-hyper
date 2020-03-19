@@ -11,8 +11,8 @@ use std::fs;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
-use webapi::{access, connectors, executors, publishers, router, routes, settings};
+use tokio::sync::mpsc;
+use webapi::{access, connectors, errors, executors, publishers, router, routes, settings};
 
 #[tokio::main]
 async fn main() {
@@ -111,12 +111,23 @@ async fn main() {
     let local_rt_arc = router_arc.clone();
     let local_dc_arc = data_connector_arc.clone();
 
+    let (event_sender, event_receiver) = mpsc::channel::<String>(100);
+    let (command_sender, command_receiver) = mpsc::channel::<String>(100);
+
+    let senders = vec![event_sender.clone(), command_sender.clone()];
+
+    let event_sender_clone = event_sender.clone();
+    let command_sender_clone = command_sender.clone();
+
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
         let rt = router_arc.clone();
+        let es = event_sender_clone.clone();
+        let cs = command_sender_clone.clone();
+
         async move {
             Ok::<_, Error>(service_fn(move |req| {
                 routes::service::service_route(
@@ -126,6 +137,8 @@ async fn main() {
                     ce.clone(),
                     ep.clone(),
                     rt.clone(),
+                    es.clone(),
+                    cs.clone(),
                 )
             }))
         }
@@ -134,7 +147,9 @@ async fn main() {
     let cancel_flag = Arc::new(AtomicBool::new(false));
     let event_publisher_cancel_flag = cancel_flag.clone();
     let command_executer_cancel_flag = cancel_flag.clone();
-    let graceful = server.with_graceful_shutdown(async { shutdown_signal(cancel_flag).await });
+
+    let graceful =
+        server.with_graceful_shutdown(async { shutdown_signal(cancel_flag, senders).await });
 
     info!("starting up");
     debug!("start hyper server");
@@ -142,7 +157,8 @@ async fn main() {
         graceful,
         tokio::spawn(async move {
             debug!("start event publisher");
-            if let Err(e) = event_publisher_task(event_publisher_cancel_flag).await {
+            if let Err(e) = event_publisher_task(event_publisher_cancel_flag, event_receiver).await
+            {
                 error!("event publisher: {}", e);
                 return "error";
             }
@@ -150,7 +166,9 @@ async fn main() {
         }),
         tokio::spawn(async move {
             debug!("start command executor");
-            if let Err(e) = command_executor_task(command_executer_cancel_flag).await {
+            if let Err(e) =
+                command_executor_task(command_executer_cancel_flag, command_receiver).await
+            {
                 error!("command executor: {}", e);
                 return "error";
             }
@@ -172,27 +190,65 @@ async fn main() {
     info!("shutdown");
 }
 
-async fn shutdown_signal(cancel_flag: Arc<AtomicBool>) {
+async fn shutdown_signal(cancel_flag: Arc<AtomicBool>, senders: Vec<mpsc::Sender<String>>) {
     tokio::signal::ctrl_c()
         .await
         .expect("failed to install CTRL+C signal handler");
     cancel_flag.store(true, Ordering::SeqCst);
+    for mut s in senders {
+        let i = &mut s;
+        i.send("".to_string()).await.unwrap();
+    }
 }
 
-async fn event_publisher_task(cancel_flag: Arc<AtomicBool>) -> connectors::Result<()> {
-    while !cancel_flag.load(Ordering::SeqCst) {
-        std::thread::sleep(Duration::from_secs(2));
-        // debug!("event publisher in action");
+async fn event_publisher_task(
+    cancel_flag: Arc<AtomicBool>,
+    mut receiver: tokio::sync::mpsc::Receiver<String>,
+) -> connectors::Result<()> {
+    const TASK: &str = "event publisher";
+    loop {
+        match receiver.recv().await {
+            Some(m) => {
+                if m.len() > 0 {
+                    debug!("{} get message {}", TASK, m);
+                } else {
+                    return Ok({});
+                }
+            }
+            None => {
+                if cancel_flag.load(Ordering::SeqCst) {
+                    debug!("{} exit signal", TASK);
+                    return Ok({});
+                } else {
+                    return Err(errors::ChannelTerminate.into());
+                }
+            }
+        };
     }
-    debug!("event publisher exit");
-    Ok({})
 }
 
-async fn command_executor_task(cancel_flag: Arc<AtomicBool>) -> connectors::Result<()> {
-    while !cancel_flag.load(Ordering::SeqCst) {
-        std::thread::sleep(Duration::from_secs(3));
-        // debug!("command executor in action");
+async fn command_executor_task(
+    cancel_flag: Arc<AtomicBool>,
+    mut receiver: tokio::sync::mpsc::Receiver<String>,
+) -> connectors::Result<()> {
+    const TASK: &str = "command executor";
+    loop {
+        match receiver.recv().await {
+            Some(m) => {
+                if m.len() > 0 {
+                    debug!("{} get message {}", TASK, m);
+                } else {
+                    return Ok({});
+                }
+            }
+            None => {
+                if cancel_flag.load(Ordering::SeqCst) {
+                    debug!("{} exit signal", TASK);
+                    return Ok({});
+                } else {
+                    return Err(errors::ChannelTerminate.into());
+                }
+            }
+        };
     }
-    debug!("command executor exit");
-    Ok({})
 }
