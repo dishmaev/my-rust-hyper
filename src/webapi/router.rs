@@ -24,8 +24,8 @@ impl Router {
         service.http_helth = service.http_helth.replace("{host}", host);
     }
     pub async fn from_remote(
-        http_from: Option<String>,
-        mq_from: Option<String>,
+        _http_from: Option<String>,
+        _mq_from: Option<String>,
         mut service: route::Route,
         host: &str,
     ) -> connectors::Result<Router> {

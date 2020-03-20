@@ -34,7 +34,7 @@ async fn main() {
         env::var(ENV_LOG_SETTINGS).unwrap_or(String::from(DEFAULT_LOG_SETTINGS));
     log4rs::init_file(log_setting_file, Default::default()).unwrap();
 
-    info!("initializing...");
+    info!("initializing");
 
     let host_name: Option<String> = {
         match env::var(ENV_HOST).is_ok() {
@@ -98,7 +98,11 @@ async fn main() {
         .await
         .expect("error while command executor initialize");
 
-    let event_publisher = publishers::EventPublisher::new()
+    let (event_sender, event_receiver) = mpsc::channel::<String>(100);
+    let (command_sender, command_receiver) = mpsc::channel::<String>(100);
+
+    let senders = vec![event_sender.clone(), command_sender.clone()];
+    let event_publisher = publishers::EventPublisher::new(event_sender.clone())
         .await
         .expect("error while event publisher initialize");
 
@@ -111,13 +115,7 @@ async fn main() {
     let local_rt_arc = router_arc.clone();
     let local_dc_arc = data_connector_arc.clone();
 
-    let (event_sender, event_receiver) = mpsc::channel::<String>(100);
-    let (command_sender, command_receiver) = mpsc::channel::<String>(100);
-
-    let senders = vec![event_sender.clone(), command_sender.clone()];
-
-    let event_sender_clone = event_sender.clone();
-    let command_sender_clone = command_sender.clone();
+    info!("starting up");
 
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
@@ -125,10 +123,9 @@ async fn main() {
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
         let rt = router_arc.clone();
-        let es = event_sender_clone.clone();
-        let cs = command_sender_clone.clone();
 
         async move {
+            debug!("start hyper server");
             Ok::<_, Error>(service_fn(move |req| {
                 routes::service::service_route(
                     req,
@@ -137,8 +134,6 @@ async fn main() {
                     ce.clone(),
                     ep.clone(),
                     rt.clone(),
-                    es.clone(),
-                    cs.clone(),
                 )
             }))
         }
@@ -151,12 +146,9 @@ async fn main() {
     let graceful =
         server.with_graceful_shutdown(async { shutdown_signal(cancel_flag, senders).await });
 
-    info!("starting up");
-    debug!("start hyper server");
     let res = futures::join!(
         graceful,
         tokio::spawn(async move {
-            debug!("start event publisher");
             if let Err(e) = event_publisher_task(event_publisher_cancel_flag, event_receiver).await
             {
                 error!("event publisher: {}", e);
@@ -165,7 +157,6 @@ async fn main() {
             "ok"
         }),
         tokio::spawn(async move {
-            debug!("start command executor");
             if let Err(e) =
                 command_executor_task(command_executer_cancel_flag, command_receiver).await
             {
@@ -206,6 +197,7 @@ async fn event_publisher_task(
     mut receiver: tokio::sync::mpsc::Receiver<String>,
 ) -> connectors::Result<()> {
     const TASK: &str = "event publisher";
+    debug!("start {}", TASK);
     loop {
         match receiver.recv().await {
             Some(m) => {
@@ -232,6 +224,7 @@ async fn command_executor_task(
     mut receiver: tokio::sync::mpsc::Receiver<String>,
 ) -> connectors::Result<()> {
     const TASK: &str = "command executor";
+    debug!("start {}", TASK);
     loop {
         match receiver.recv().await {
             Some(m) => {

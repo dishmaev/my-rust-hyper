@@ -1,5 +1,7 @@
 pub mod entities;
+pub mod commands;
 pub mod events;
+pub mod traits;
 pub mod access;
 pub mod routes;
 pub mod errors;

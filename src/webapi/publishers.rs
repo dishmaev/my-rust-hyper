@@ -1,23 +1,37 @@
-use super::connectors;
+use super::{connectors, errors, traits};
 use serde::ser;
+use tokio::sync::mpsc;
 
 pub struct EventPublisher {
-    http_event_producer: HttpEventProducer,
+    _http_event_producer: HttpEventProducer,
+    sender: mpsc::Sender<String>,
 }
 
 impl EventPublisher {
-    pub async fn new() -> connectors::Result<EventPublisher> {
+    pub async fn new(sender: mpsc::Sender<String>) -> connectors::Result<EventPublisher> {
         Ok(EventPublisher {
-            http_event_producer: HttpEventProducer {},
+            _http_event_producer: HttpEventProducer::new().await?,
+            sender: sender,
         })
     }
 
-    pub fn send<T>(&self, items: Vec<T>)
+    pub async fn send<T>(&self, correlation_id: &str, items: Vec<T>) -> connectors::Result<()>
     where
         T: ser::Serialize,
-        T: std::fmt::Debug,
+        T: traits::ObjectType,
     {
-        debug!("{:?}", items);
+        debug!("correlation id {} object_type {} count {}", correlation_id, T::get_type_name(), items.len());
+        let mut s = self.sender.clone();
+        for item in items {
+            match s.send(serde_json::to_string(&item).unwrap()).await {
+                Ok(_) => {},
+                Err(e) => {
+                    error!("event publisher: {}", e);
+                    return Err(errors::EventSendError.into())
+                }
+            }
+        }
+        Ok({})
     }
 }
 

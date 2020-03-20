@@ -1,16 +1,16 @@
-use super::super::{connectors, executors, entities::car, errors};
+use super::super::{connectors, executors, commands, entities, errors};
 use super::models;
 
 pub async fn get(
     dc: &connectors::DataConnector,
     ids: Option<Vec<i32>>,
-) -> connectors::Result<Vec<car::Car>> {
+) -> connectors::Result<Vec<entities::car::Car>> {
     Ok(dc.car.get(ids).await?)
 }
 
 pub async fn add(
     dc: &connectors::DataConnector,
-    items: Vec<car::Car>,
+    items: Vec<entities::car::Car>,
 ) -> connectors::Result<models::AddIntIdsReply> {
     let (result, ids) = dc.car.add(items).await?;
     if result == errors::ErrorCode::ReplyOk {
@@ -23,9 +23,9 @@ pub async fn add(
 pub async fn update(
     dc: &connectors::DataConnector,
     ce: &executors::CommandExecutor,
-    items: Vec<car::Car>,
+    items: Vec<entities::car::Car>,
 ) -> connectors::Result<models::Reply> {
-    let c: models::Reply = ce.call("test".to_string(), None::<car::Car>).await?;
+    let c: models::Reply = ce.call(None::<commands::car::MoveCar>).await?;
     debug!("{}", c.error_code.as_isize());
     let result: errors::ErrorCode = dc.car.update(items).await?;
     if result == errors::ErrorCode::ReplyOk {

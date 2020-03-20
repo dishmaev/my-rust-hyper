@@ -25,10 +25,12 @@ pub async fn get_subscription(
 pub async fn add(
     dc: &connectors::DataConnector,
     items: Vec<entities::route::Route>,
-) -> connectors::Result<models::AddStrIdsReply> {
+) -> connectors::Result<(models::AddStrIdsReply, Option<Vec::<events::route::OnRouteUpdate>>)> {
     let (result, ids) = dc.route.add(items).await?;
     if result == errors::ErrorCode::ReplyOk {
-        Ok(get_ok_add_str_ids_reply!(ids.unwrap()))
+        let v1 = ids.unwrap();
+        let v2 = v1.clone();
+        Ok(get_ok_add_str_ids_reply_events!(v1, Some(vec![events::route::OnRouteUpdate{services: v2}])))
     } else {
         Ok(get_error_add_str_ids_reply!(&result, dc.error))
     }
@@ -37,27 +39,28 @@ pub async fn add(
 pub async fn remove(
     dc: &connectors::DataConnector,
     ids: Vec<String>,
-) -> connectors::Result<models::Reply> {
-    let result: errors::ErrorCode = dc.route.remove(ids).await?;
+) -> connectors::Result<(models::Reply, Option<Vec::<events::route::OnRouteUpdate>>)> {
+    let result: errors::ErrorCode = dc.route.remove(ids.clone()).await?;
     if result == errors::ErrorCode::ReplyOk {
-        Ok(get_ok_reply!())
+        Ok(get_ok_reply_events!(Some(vec![events::route::OnRouteUpdate{services: ids}])))
     } else {
-        Ok(get_error_reply!(&result, dc.error))
+        Ok(get_error_reply_events!(&result, dc.error))
     }
 }
 
 pub async fn on_service_unavailable(
-    dc: &connectors::DataConnector,
-    rt: &router::Router,
-    ids: Vec<events::route::OnServiceUnavailable>,
-) -> connectors::Result<models::Reply> {
-    Ok(get_ok_reply!())
+    _dc: &connectors::DataConnector,
+    _rt: &router::Router,
+    _ids: Vec<events::route::OnServiceUnavailable>,
+) -> connectors::Result<(models::Reply, Option<Vec::<events::route::OnServiceUnavailable>>)> {
+    Ok(get_ok_reply_events!(None))
 }
 
 pub async fn on_route_update(
-    dc: &connectors::DataConnector,
-    ce: &executors::CommandExecutor,
-    services: Vec<String>,
+    _dc: &connectors::DataConnector,
+    _ep: &publishers::EventPublisher,
+    _ce: &executors::CommandExecutor,
+    _services: Vec<String>,
 ) -> connectors::Result<models::Reply> {
     Ok(get_ok_reply!())
 }

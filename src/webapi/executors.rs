@@ -1,17 +1,23 @@
-use super::{connectors, handlers, errors};
+use super::{connectors, traits};
 use serde::{de, ser};
 
-pub struct CommandExecutor{
-    http_command_producer: HttpCommandProducer
+pub struct CommandExecutor {
+    _http_command_producer: HttpCommandProducer,
 }
 
-impl CommandExecutor{
+impl CommandExecutor {
     pub async fn new() -> connectors::Result<CommandExecutor> {
-        Ok(CommandExecutor{ http_command_producer: HttpCommandProducer{}})
+        Ok(CommandExecutor {
+            _http_command_producer: HttpCommandProducer::new().await?,
+        })
     }
 
-    pub async fn call<T, R>(&self, object_type: String, request: Option<T>) -> connectors::Result<R>
-        where T: ser::Serialize, R: for <'de> de::Deserialize<'de>,
+    pub async fn call<T, R>(&self, _request: Option<T>) -> connectors::Result<R>
+    where
+        T: ser::Serialize,
+        T: traits::ObjectType,
+        R: for<'de> de::Deserialize<'de>,
+        R: traits::ObjectType,
     {
         let s = "{
             \"errorCode\": 0
@@ -26,6 +32,6 @@ pub struct HttpCommandProducer;
 
 impl HttpCommandProducer {
     pub async fn new() -> connectors::Result<HttpCommandProducer> {
-        Ok(HttpCommandProducer{})
+        Ok(HttpCommandProducer {})
     }
 }

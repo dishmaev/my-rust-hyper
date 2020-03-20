@@ -21,8 +21,6 @@ async fn get_settings() -> (
     Arc<executors::CommandExecutor>,
     Arc<publishers::EventPublisher>,
     Arc<router::Router>,
-    mpsc::Sender<String>,
-    mpsc::Sender<String>,
 ) {
     let mut rng = rand::thread_rng();
     let app_settings: settings::AppSettings =
@@ -53,7 +51,8 @@ async fn get_settings() -> (
     let command_executor = executors::CommandExecutor::new()
         .await
         .expect("error while initialize command executor");
-    let event_publisher = publishers::EventPublisher::new()
+    let (event_sender, event_receiver) = mpsc::channel::<String>(100);
+    let event_publisher = publishers::EventPublisher::new(event_sender)
         .await
         .expect("error while event publisher initialize");
     let (event_sender, _event_receiver) = mpsc::channel::<String>(100);
@@ -65,8 +64,6 @@ async fn get_settings() -> (
         Arc::new(command_executor),
         Arc::new(event_publisher),
         Arc::new(router),
-        event_sender.clone(),
-        command_sender.clone(),
     )
 }
 
@@ -93,8 +90,6 @@ async fn test_index_ok() {
         command_executor_arc,
         event_publisher_arc,
         router_arc,
-        event_sender_clone,
-        command_sender_clone,
     ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
@@ -102,8 +97,6 @@ async fn test_index_ok() {
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
         let rt = router_arc.clone();
-        let es = event_sender_clone.clone();
-        let cs = command_sender_clone.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
                 service::service_route(
@@ -113,8 +106,6 @@ async fn test_index_ok() {
                     ce.clone(),
                     ep.clone(),
                     rt.clone(),
-                    es.clone(),
-                    cs.clone(),
                 )
             }))
         }
@@ -140,8 +131,6 @@ async fn test_spec_json_ok() {
         command_executor_arc,
         event_publisher_arc,
         router_arc,
-        event_sender_clone,
-        command_sender_clone,
     ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
@@ -149,8 +138,6 @@ async fn test_spec_json_ok() {
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
         let rt = router_arc.clone();
-        let es = event_sender_clone.clone();
-        let cs = command_sender_clone.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
                 service::service_route(
@@ -160,8 +147,6 @@ async fn test_spec_json_ok() {
                     ce.clone(),
                     ep.clone(),
                     rt.clone(),
-                    es.clone(),
-                    cs.clone(),
                 )
             }))
         }
@@ -187,8 +172,6 @@ async fn test_spec_yaml_ok() {
         command_executor_arc,
         event_publisher_arc,
         router_arc,
-        event_sender_clone,
-        command_sender_clone,
     ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
@@ -196,8 +179,6 @@ async fn test_spec_yaml_ok() {
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
         let rt = router_arc.clone();
-        let es = event_sender_clone.clone();
-        let cs = command_sender_clone.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
                 service::service_route(
@@ -207,8 +188,6 @@ async fn test_spec_yaml_ok() {
                     ce.clone(),
                     ep.clone(),
                     rt.clone(),
-                    es.clone(),
-                    cs.clone(),
                 )
             }))
         }
@@ -234,8 +213,6 @@ async fn test_route_ok() {
         command_executor_arc,
         event_publisher_arc,
         router_arc,
-        event_sender_clone,
-        command_sender_clone,
     ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
@@ -243,8 +220,6 @@ async fn test_route_ok() {
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
         let rt = router_arc.clone();
-        let es = event_sender_clone.clone();
-        let cs = command_sender_clone.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
                 service::service_route(
@@ -254,8 +229,6 @@ async fn test_route_ok() {
                     ce.clone(),
                     ep.clone(),
                     rt.clone(),
-                    es.clone(),
-                    cs.clone(),
                 )
             }))
         }
@@ -283,8 +256,6 @@ async fn test_route_err() {
         command_executor_arc,
         event_publisher_arc,
         router_arc,
-        event_sender_arc,
-        command_sender_arc,
     ) = get_settings().await;
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
@@ -292,8 +263,6 @@ async fn test_route_err() {
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
         let rt = router_arc.clone();
-        let es = event_sender_arc.clone();
-        let cs = command_sender_arc.clone();
         async move {
             Ok::<_, Error>(service_fn(move |req| {
                 service::service_route(
@@ -303,8 +272,6 @@ async fn test_route_err() {
                     ce.clone(),
                     ep.clone(),
                     rt.clone(),
-                    es.clone(),
-                    cs.clone(),
                 )
             }))
         }

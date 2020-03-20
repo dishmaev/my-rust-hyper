@@ -36,3 +36,43 @@ impl error::Error for ChannelTerminate {
         None
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct EventSendError;
+
+impl fmt::Display for EventSendError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "event send error")
+    }
+}
+
+impl error::Error for EventSendError {
+    fn description(&self) -> &str {
+        "event send error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HandlerError;
+
+impl fmt::Display for HandlerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "handler error")
+    }
+}
+
+impl error::Error for HandlerError {
+    fn description(&self) -> &str {
+        "handler error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
