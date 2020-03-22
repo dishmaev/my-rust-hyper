@@ -1,31 +1,35 @@
-use super::{connectors, errors, router, traits, workers};
+use super::{access, connectors, errors, router, traits, workers};
+use hyper::Client;
 use serde::{de, ser};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 pub struct CommandExecutor {
+    ac: Arc<access::AccessChecker>,
     rt: Arc<router::Router>,
-    _control_sender: mpsc::Sender<workers::SignalCode>,
-    _http_command_producer: HttpCommandProducer,
-    _mq_command_producer: MqCommandProducer,
+    cs: mpsc::Sender<workers::SignalCode>,
+    hcp: HttpCommandProducer,
+    mcp: MqCommandProducer,
 }
 
 impl CommandExecutor {
     pub async fn new(
+        ac: Arc<access::AccessChecker>,
         rt: Arc<router::Router>,
-        control_sender: mpsc::Sender<workers::SignalCode>,
+        cs: mpsc::Sender<workers::SignalCode>,
     ) -> connectors::Result<CommandExecutor> {
         Ok(CommandExecutor {
+            ac: ac,
             rt: rt,
-            _control_sender: control_sender,
-            _http_command_producer: HttpCommandProducer::new().await?,
-            _mq_command_producer: MqCommandProducer::new().await?,
+            cs: cs,
+            hcp: HttpCommandProducer::new().await?,
+            mcp: MqCommandProducer::new().await?,
         })
     }
 
     pub async fn send_signal(&self, signal_code: workers::SignalCode) -> connectors::Result<()> {
-        let mut s = self._control_sender.clone();
+        let mut s = self.cs.clone();
         match s.send(signal_code).await {
             Ok(_) => Ok({}),
             Err(e) => {
@@ -58,7 +62,7 @@ impl CommandExecutor {
     }
 }
 
-pub struct HttpCommandProducer;
+pub struct HttpCommandProducer {}
 
 impl HttpCommandProducer {
     pub async fn new() -> connectors::Result<HttpCommandProducer> {

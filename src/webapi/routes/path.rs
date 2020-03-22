@@ -16,13 +16,14 @@ pub const ROUTE_SUBSCIBTION_GET: &str = "/router/subscription/get";
 pub const ROUTE_COMMAND_ITEMS: &str = "/router/commands";
 pub const ROUTE_COMMAND_GET: &str = "/router/command/get";
 pub const ROUTE_EVENT_ON_SERVICE_UNAVAILABLE: &str = "/router/event/on_service_unavailable";
-pub const ROUTE_EVENT_ON_ROUTE_UPDATE: &str = "/router/event/on_route_update";
 
 pub const CAR_ITEMS: &str = "/cars";
 pub const CAR_GET: &str = "/car/get";
 pub const CAR_ADD: &str = "/car/add";
 pub const CAR_UPDATE: &str = "/car/update";
 pub const CAR_REMOVE: &str = "/car/remove";
+
+pub const EVENT_ON_ROUTE_UPDATE: &str = "/event/on_route_update";
 
 #[cfg(test)]
 pub const ROUTE_WITH_EMPTY_BODY: [&str; 9] = [

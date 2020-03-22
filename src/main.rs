@@ -71,7 +71,7 @@ async fn main() {
     )
     .await
     .expect("error while data connector initialize");
-    let access_checker = access::AccessChecker::from_data_connector(&data_connector)
+    let access_checker = access::AccessChecker::from_data_connector(&data_connector, &app_settings._access.authentication)
         .await
         .expect("error while access checker initialize");
 
@@ -107,15 +107,16 @@ async fn main() {
         command_executor_control_sender.clone(),
     ];
 
-    let command_executor = executors::CommandExecutor::new(router_arc.clone(), command_executor_control_sender.clone())
+    let access_checker_arc = Arc::new(access_checker);
+
+    let command_executor = executors::CommandExecutor::new(access_checker_arc.clone(), router_arc.clone(), command_executor_control_sender.clone())
         .await
         .expect("error while command executor initialize");
-    let event_publisher = publishers::EventPublisher::new(router_arc.clone(), event_publisher_control_sender.clone())
+    let event_publisher = publishers::EventPublisher::new(access_checker_arc.clone(), router_arc.clone(), event_publisher_control_sender.clone())
         .await
         .expect("error while event publisher initialize");
 
     let data_connector_arc = Arc::new(data_connector);
-    let access_checker_arc = Arc::new(access_checker);
     let command_executor_arc = Arc::new(command_executor);
     let event_publisher_arc = Arc::new(event_publisher);
 
@@ -123,6 +124,7 @@ async fn main() {
     let local_dc_arc = data_connector_arc.clone();
 
     info!("starting up");
+    debug!("start hyper server");
 
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
@@ -132,7 +134,6 @@ async fn main() {
         let rt = router_arc.clone();
 
         async move {
-            debug!("start hyper server");
             Ok::<_, Error>(service_fn(move |req| {
                 routes::service::service_route(
                     req,

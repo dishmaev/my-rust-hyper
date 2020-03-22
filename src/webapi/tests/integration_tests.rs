@@ -9,7 +9,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-fn get_basic_authorization(user: &String, password: &String) -> String {
+fn get_basic_authorization_token(user: &String, password: &String) -> String {
     format!(
         "Basic {}",
         base64::encode(&format!("{}:{}", user, password))
@@ -34,7 +34,7 @@ async fn get_settings() -> (
     )
     .await
     .expect("error while initialize data connector");
-    let access_checker = access::AccessChecker::_from_app_settings(&app_settings._access.unwrap())
+    let access_checker = access::AccessChecker::_from_app_settings(&app_settings._access)
         .await
         .expect("error while initialize access checker");
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), rng.gen_range(15000, 25000));
@@ -47,19 +47,20 @@ async fn get_settings() -> (
     )
     .await
     .expect("error while local router initialize");
+    let access_checker_arc = Arc::new(access_checker);
     let router_arc = Arc::new(router);
     let (command_sender, _command_receiver) = mpsc::channel::<workers::SignalCode>(10);
-    let command_executor = executors::CommandExecutor::new(router_arc.clone(), command_sender)
+    let command_executor = executors::CommandExecutor::new(access_checker_arc.clone(), router_arc.clone(), command_sender)
         .await
         .expect("error while initialize command executor");
     let (event_sender, _event_receiver) = mpsc::channel::<workers::SignalCode>(10);
-    let event_publisher = publishers::EventPublisher::new(router_arc.clone(), event_sender)
+    let event_publisher = publishers::EventPublisher::new(access_checker_arc.clone(), router_arc.clone(), event_sender)
         .await
         .expect("error while event publisher initialize");
     (
         addr,
         Arc::new(data_connector),
-        Arc::new(access_checker),
+        access_checker_arc,
         Arc::new(command_executor),
         Arc::new(event_publisher),
         router_arc,
@@ -72,7 +73,7 @@ async fn call_service(method: hyper::Method, port: u16, path: &str, body: Body) 
         .uri(format!("http://{}:{}{}", Ipv4Addr::LOCALHOST, port, path))
         .header(
             "Authorization",
-            get_basic_authorization(&"test".to_string(), &"1234567890".to_string()),
+            get_basic_authorization_token(&"test".to_string(), &"1234567890".to_string()),
         )
         .body(body)
         .expect("request builder");

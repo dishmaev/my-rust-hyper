@@ -167,7 +167,7 @@ pub async fn service_route(
                     resp_with_code(StatusCode::BAD_REQUEST)
                 }
             }
-            path::ROUTE_EVENT_ON_ROUTE_UPDATE => {
+            path::EVENT_ON_ROUTE_UPDATE => {
                 let items: Option<Vec<events::route::OnRouteUpdate>> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if items.is_some() {

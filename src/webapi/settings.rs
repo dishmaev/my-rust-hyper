@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub _error: Option<HashMap<isize, String>>,
-    pub _access: Option<Access>,
+    pub _access: Access,
     pub _pg_db: PgDb,
     pub _my_sql_db: MySqlDb,
     pub _service: route::Route,
@@ -16,9 +16,14 @@ pub struct AppSettings {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Access {
-    pub user: String,
-    pub password: String,
-    pub authentication: HashMap<String, String>,
+    pub authentication: Authentication,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Authentication {
+    pub server: HashMap<String, String>,
+    pub client: Vec<route::ClientAccess>
 }
 
 #[derive(Deserialize)]

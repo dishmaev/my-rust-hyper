@@ -37,6 +37,14 @@ pub struct Subscription {
     pub mq_to: Option<String>,
 }
 
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientAccess {
+    pub service_name: String,
+    pub usr_name: String,
+    pub usr_password: String,
+}
+
 #[derive(Clone)]
 pub struct CommandRoute {
     pub object_type: String,
@@ -52,3 +60,4 @@ pub struct SubscriptionRoute {
     pub mq_to: Option<String>,
     pub service_name: Option<String>,
 }
+

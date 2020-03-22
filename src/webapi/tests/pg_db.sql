@@ -43,6 +43,18 @@ INSERT INTO usr
 (usr_name, usr_password)
 VALUES('test', '1234567890');
 /
+CREATE TABLE client_access (
+	source_service_name text NOT NULL,
+	destination_service_name text NOT NULL,
+	usr_name text NOT NULL,
+	usr_password text NOT NULL,
+	CONSTRAINT client_access_pk PRIMARY KEY (source_service_name, destination_service_name)
+);
+/
+INSERT INTO client_access
+(source_service_name, destination_service_name, usr_name, usr_password)
+VALUES('*', '*', 'test', '1234567890');
+/
 CREATE table service (
 	"name" text NOT NULL,
 	"priority" int4 NOT NULL,

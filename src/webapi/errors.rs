@@ -98,6 +98,26 @@ impl error::Error for HandlerError {
 }
 
 #[derive(Debug, Clone)]
+pub struct UnknownServiceNameError;
+
+impl fmt::Display for UnknownServiceNameError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unknown service name error")
+    }
+}
+
+impl error::Error for UnknownServiceNameError {
+    fn description(&self) -> &str {
+        "unknown service name error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct UnknownCommandError;
 
 impl fmt::Display for UnknownCommandError {
