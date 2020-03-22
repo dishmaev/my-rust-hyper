@@ -33,3 +33,15 @@ pub struct AddStrIdsReply {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ids: Option<Vec<String>>,
 }
+
+impl Reply {
+    pub fn is_ok(&self) -> bool {
+        (self.error_code == errors::ErrorCode::ReplyOk)
+    }
+}
+
+impl AddStrIdsReply {
+    pub fn is_ok(&self) -> bool {
+        (self.error_code == errors::ErrorCode::ReplyOk)
+    }
+}

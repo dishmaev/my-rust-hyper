@@ -16,6 +16,8 @@ pub struct AppSettings {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Access {
+    pub user: String,
+    pub password: String,
     pub authentication: HashMap<String, String>,
 }
 

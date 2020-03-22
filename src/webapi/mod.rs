@@ -15,6 +15,7 @@ pub mod connectors;
 pub mod router;
 pub mod publishers;
 pub mod executors;
+pub mod workers;
 
 #[cfg(test)]
 mod tests;

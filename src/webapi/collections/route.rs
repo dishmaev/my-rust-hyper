@@ -72,7 +72,7 @@ impl RouteCollection {
         if services.is_none() {
             Ok(sqlx::query_as!(
                 route::Subscription,
-                r#"SELECT service_name, priority, object_type, http_to, mq_to
+                r#"SELECT service_name, object_type, http_to, mq_to
             FROM webapi."v_subscription"
             "#
             )
@@ -90,10 +90,9 @@ impl RouteCollection {
             for rec in recs {
                 items.push(route::Subscription {
                     service_name: rec.get(0),
-                    priority: rec.get(1),
-                    object_type: rec.get(2),
-                    http_to: rec.get(3),
-                    mq_to: rec.get(4),
+                    object_type: rec.get(1),
+                    http_to: rec.get(2),
+                    mq_to: rec.get(3),
                 })
             }
             Ok(items)
@@ -150,7 +149,6 @@ impl RouteCollection {
             for subscription_rec in subscription_recs {
                 subscriptions.push(route::Subscription {
                     service_name: None,
-                    priority: None,
                     object_type: subscription_rec.get(0),
                     http_to: subscription_rec.get(1),
                     mq_to: subscription_rec.get(2),
@@ -216,6 +214,13 @@ impl RouteCollection {
                 }
             };
             for command in route.command {
+                if (command.http_to.is_none() || command.http_to.as_ref().unwrap().is_empty())
+                    && (command.mq_to.is_none() || command.mq_to.as_ref().unwrap().is_empty())
+                {
+                    tx.rollback().await.unwrap();
+                    debug!("add_routes db command insert: http_to and mq_to not set");
+                    return Err(errors::UnsetRequiredValueError.into());
+                }
                 #[cfg(feature = "postgres")]
                 match sqlx::query!(
                     r#"INSERT INTO webapi.command ( service_name, object_type, http_to, mq_to ) VALUES ( $1, $2, $3, $4 )"#,
@@ -252,6 +257,13 @@ impl RouteCollection {
                 };
             }
             for subscription in route.subscription {
+                if (subscription.http_to.is_none() || subscription.http_to.as_ref().unwrap().is_empty())
+                    && (subscription.mq_to.is_none() || subscription.mq_to.as_ref().unwrap().is_empty())
+                {
+                    tx.rollback().await.unwrap();
+                    debug!("add_routes db subscription insert: http_to and mq_to not set");
+                    return Err(errors::UnsetRequiredValueError.into());
+                }
                 #[cfg(feature = "postgres")]
                 match sqlx::query!(
                     r#"INSERT INTO webapi.subscription ( service_name, object_type, http_to, mq_to ) VALUES ( $1, $2, $3, $4 )"#,

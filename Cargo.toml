@@ -21,6 +21,7 @@ base64 = "0.11"
 dotenv = "0.15"
 url = "2"
 log = "0.4"
+uuid = { version = "0.8", default-features = false, features = ["v4"] }
 log4rs = { version = "0.10", default-features = false, features = ["all_components", "file", "yaml_format"] }
 sqlx = { version = "0.2", default-features = false, features = [ "runtime-tokio", "macros", "tls" ] }
 

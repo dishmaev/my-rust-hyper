@@ -12,7 +12,7 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use webapi::{access, connectors, errors, executors, publishers, router, routes, settings};
+use webapi::{access, connectors, executors, publishers, router, routes, settings, workers};
 
 #[tokio::main]
 async fn main() {
@@ -76,33 +76,41 @@ async fn main() {
         .expect("error while access checker initialize");
 
     let router = if app_settings._router.local.is_some() {
-        router::Router::from_local(
+        router::Router::new_local(
             &data_connector,
             app_settings._router.local.unwrap(),
             app_settings._service,
             &host,
         )
         .await
-        .expect("error while router initialize")
+        .expect("error while local router initialize")
     } else {
-        router::Router::from_remote(
+        router::Router::new_remote(
             app_settings._router.http_from,
             app_settings._router.mq_from,
             app_settings._service,
             &host,
         )
         .await
-        .expect("error while router initialize")
+        .expect("error while remote router initialize")
     };
-    let command_executor = executors::CommandExecutor::new()
+
+    let router_arc = Arc::new(router);
+
+    let (command_executor_control_sender, command_executor_control_receiver) =
+        mpsc::channel::<workers::SignalCode>(5);
+    let (event_publisher_control_sender, event_publisher_control_receiver) =
+        mpsc::channel::<workers::SignalCode>(5);
+
+    let control_senders = vec![
+        event_publisher_control_sender.clone(),
+        command_executor_control_sender.clone(),
+    ];
+
+    let command_executor = executors::CommandExecutor::new(router_arc.clone(), command_executor_control_sender.clone())
         .await
         .expect("error while command executor initialize");
-
-    let (event_sender, event_receiver) = mpsc::channel::<String>(100);
-    let (command_sender, command_receiver) = mpsc::channel::<String>(100);
-
-    let senders = vec![event_sender.clone(), command_sender.clone()];
-    let event_publisher = publishers::EventPublisher::new(event_sender.clone())
+    let event_publisher = publishers::EventPublisher::new(router_arc.clone(), event_publisher_control_sender.clone())
         .await
         .expect("error while event publisher initialize");
 
@@ -110,7 +118,6 @@ async fn main() {
     let access_checker_arc = Arc::new(access_checker);
     let command_executor_arc = Arc::new(command_executor);
     let event_publisher_arc = Arc::new(event_publisher);
-    let router_arc = Arc::new(router);
 
     let local_rt_arc = router_arc.clone();
     let local_dc_arc = data_connector_arc.clone();
@@ -143,13 +150,17 @@ async fn main() {
     let event_publisher_cancel_flag = cancel_flag.clone();
     let command_executer_cancel_flag = cancel_flag.clone();
 
-    let graceful =
-        server.with_graceful_shutdown(async { shutdown_signal(cancel_flag, senders).await });
+    let graceful = server
+        .with_graceful_shutdown(async { shutdown_signal(cancel_flag, control_senders).await });
 
     let res = futures::join!(
         graceful,
         tokio::spawn(async move {
-            if let Err(e) = event_publisher_task(event_publisher_cancel_flag, event_receiver).await
+            if let Err(e) = workers::event_publisher_worker(
+                event_publisher_cancel_flag,
+                event_publisher_control_receiver,
+            )
+            .await
             {
                 error!("event publisher: {}", e);
                 return "error";
@@ -157,8 +168,11 @@ async fn main() {
             "ok"
         }),
         tokio::spawn(async move {
-            if let Err(e) =
-                command_executor_task(command_executer_cancel_flag, command_receiver).await
+            if let Err(e) = workers::command_executor_worker(
+                command_executer_cancel_flag,
+                command_executor_control_receiver,
+            )
+            .await
             {
                 error!("command executor: {}", e);
                 return "error";
@@ -181,67 +195,16 @@ async fn main() {
     info!("shutdown");
 }
 
-async fn shutdown_signal(cancel_flag: Arc<AtomicBool>, senders: Vec<mpsc::Sender<String>>) {
+async fn shutdown_signal(
+    cancel_flag: Arc<AtomicBool>,
+    control_senders: Vec<mpsc::Sender<workers::SignalCode>>,
+) {
     tokio::signal::ctrl_c()
         .await
         .expect("failed to install CTRL+C signal handler");
     cancel_flag.store(true, Ordering::SeqCst);
-    for mut s in senders {
+    for mut s in control_senders {
         let i = &mut s;
-        i.send("".to_string()).await.unwrap();
-    }
-}
-
-async fn event_publisher_task(
-    cancel_flag: Arc<AtomicBool>,
-    mut receiver: tokio::sync::mpsc::Receiver<String>,
-) -> connectors::Result<()> {
-    const TASK: &str = "event publisher";
-    debug!("start {}", TASK);
-    loop {
-        match receiver.recv().await {
-            Some(m) => {
-                if m.len() > 0 {
-                    debug!("{} get message {}", TASK, m);
-                } else {
-                    return Ok({});
-                }
-            }
-            None => {
-                if cancel_flag.load(Ordering::SeqCst) {
-                    debug!("{} exit signal", TASK);
-                    return Ok({});
-                } else {
-                    return Err(errors::ChannelTerminate.into());
-                }
-            }
-        };
-    }
-}
-
-async fn command_executor_task(
-    cancel_flag: Arc<AtomicBool>,
-    mut receiver: tokio::sync::mpsc::Receiver<String>,
-) -> connectors::Result<()> {
-    const TASK: &str = "command executor";
-    debug!("start {}", TASK);
-    loop {
-        match receiver.recv().await {
-            Some(m) => {
-                if m.len() > 0 {
-                    debug!("{} get message {}", TASK, m);
-                } else {
-                    return Ok({});
-                }
-            }
-            None => {
-                if cancel_flag.load(Ordering::SeqCst) {
-                    debug!("{} exit signal", TASK);
-                    return Ok({});
-                } else {
-                    return Err(errors::ChannelTerminate.into());
-                }
-            }
-        };
+        i.send(workers::SignalCode::Exit).await.unwrap();
     }
 }

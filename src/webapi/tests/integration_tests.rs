@@ -1,4 +1,6 @@
-use super::super::{access, connectors, executors, publishers, router, routes::*, settings};
+use super::super::{
+    access, connectors, executors, publishers, router, routes::*, settings, workers,
+};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Client, Error, Method, Request, Response, Server, StatusCode};
 use rand::prelude::Rng;
@@ -37,33 +39,30 @@ async fn get_settings() -> (
         .expect("error while initialize access checker");
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), rng.gen_range(15000, 25000));
     let host = format!("{}:{}", &addr.ip(), &addr.port());
-    let router = router::Router::from_local(
+    let router = router::Router::new_local(
         &data_connector,
         app_settings._router.local.unwrap(),
         app_settings._service,
         &host,
     )
     .await
-    .expect("error while router initialize");
-    let command_executor = executors::CommandExecutor::new()
+    .expect("error while local router initialize");
+    let router_arc = Arc::new(router);
+    let (command_sender, _command_receiver) = mpsc::channel::<workers::SignalCode>(10);
+    let command_executor = executors::CommandExecutor::new(router_arc.clone(), command_sender)
         .await
         .expect("error while initialize command executor");
-    let command_executor = executors::CommandExecutor::new()
-        .await
-        .expect("error while initialize command executor");
-    let (event_sender, event_receiver) = mpsc::channel::<String>(100);
-    let event_publisher = publishers::EventPublisher::new(event_sender)
+    let (event_sender, _event_receiver) = mpsc::channel::<workers::SignalCode>(10);
+    let event_publisher = publishers::EventPublisher::new(router_arc.clone(), event_sender)
         .await
         .expect("error while event publisher initialize");
-    let (event_sender, _event_receiver) = mpsc::channel::<String>(100);
-    let (command_sender, _command_receiver) = mpsc::channel::<String>(100);
     (
         addr,
         Arc::new(data_connector),
         Arc::new(access_checker),
         Arc::new(command_executor),
         Arc::new(event_publisher),
-        Arc::new(router),
+        router_arc,
     )
 }
 

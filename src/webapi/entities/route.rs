@@ -30,11 +30,25 @@ pub struct Command {
 pub struct Subscription {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub priority: Option<i32>,
     pub object_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http_to: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mq_to: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct CommandRoute {
+    pub object_type: String,
+    pub http_to: Option<String>,
+    pub mq_to: Option<String>,
+    pub service_name: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct SubscriptionRoute {
+    pub object_type: String,
+    pub http_to: Option<String>,
+    pub mq_to: Option<String>,
+    pub service_name: Option<String>,
 }

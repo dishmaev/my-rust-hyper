@@ -71,20 +71,21 @@ CREATE table subscription (
 );
 /
 CREATE OR REPLACE VIEW v_command
-AS SELECT c.service_name,
+AS SELECT c.object_type,
     s.priority,
-    c.object_type,
+    c.service_name,
     c.http_to,
     c.mq_to
    FROM webapi.command c
-     JOIN webapi.service s ON s.name = c.service_name;
+     JOIN webapi.service s ON s.name = c.service_name
+	 	ORDER BY c.object_type, s.priority;
 /
 CREATE OR REPLACE VIEW v_subscription
-AS SELECT ss.service_name,
-    sv.priority,
-    ss.object_type,
+AS SELECT ss.object_type,
+    ss.service_name,
     ss.http_to,
     ss.mq_to
    FROM webapi.subscription ss
-     JOIN webapi.service sv ON sv.name = ss.service_name;
+     JOIN webapi.service sv ON sv.name = ss.service_name
+	 	ORDER BY ss.object_type;
 /
