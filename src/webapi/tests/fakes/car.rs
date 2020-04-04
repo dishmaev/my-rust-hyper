@@ -21,7 +21,7 @@ impl CarCollection {
     ) -> connectors::Result<(errors::ErrorCode, Option<Vec<i32>>)> {
         Ok((errors::ErrorCode::ReplyOk, None))
     }
-    pub async fn update(&self, _items: Vec<car::Car>) -> connectors::Result<errors::ErrorCode> {
+    pub async fn modify(&self, _items: Vec<car::Car>) -> connectors::Result<errors::ErrorCode> {
         Ok(errors::ErrorCode::ReplyOk)
     }
     pub async fn remove(&self, _ids: Vec<i32>) -> connectors::Result<errors::ErrorCode> {

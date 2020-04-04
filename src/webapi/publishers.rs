@@ -51,18 +51,24 @@ impl EventPublisher {
         );
         if let Some(s) = self.rt.get_subscriptions(T::get_type_name()) {
             for item in s {
-                if item.http_to.is_some() {
+                if item.path.contains_key(connectors::PROTO_HTTP) {
                     let token = self.ac.get_client_basic_authorization_token(
                         item.service_name.unwrap_or_default(),
                     )?;
-                    self.hep
+                    match self.hep
                         .send(
-                            item.http_to.as_ref().unwrap(),
+                            item.path.get(connectors::PROTO_HTTP).unwrap(),
+                            T::get_type_name(),
                             correlation_id,
                             token,
                             Body::from(serde_json::to_string(&items).unwrap()),
                         )
-                        .await?;
+                        .await{
+                            Ok(_) => {},
+                            Err(e) => {
+                                warn!("correlation id {} object type {} send error {}", correlation_id, T::get_type_name(), e);
+                            }
+                        }
                 } else {
                 }
             }
@@ -81,13 +87,14 @@ impl HttpEventProducer {
     pub async fn send(
         &self,
         to: &str,
+        object_type: &str,
         correlation_id: &str,
         bat: String,
         body: Body,
     ) -> connectors::Result<()> {
         let req = Request::builder()
             .method(Method::POST)
-            .uri(format!("{}?CorrelationId={}", to, correlation_id))
+            .uri(format!("{}?ObjectType={}&CorrelationId={}", to, object_type, correlation_id))
             .header("Authorization", bat)
             .body(body)
             .expect("request builder");
@@ -98,7 +105,12 @@ impl HttpEventProducer {
             correlation_id,
             resp.status(),
         );
-        Ok({})
+        if resp.status() == StatusCode::OK {
+            Ok({})
+        }
+        else{
+            Err(errors::SendEventError.into())
+        }
     }
 }
 

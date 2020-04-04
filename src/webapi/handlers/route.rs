@@ -1,35 +1,135 @@
-use super::super::{connectors, entities, errors, events, executors, publishers, router};
-use super::models;
+use super::super::{
+    commands, connectors, entities, errors, events, traits, executors, publishers, replies, router,
+};
 
 pub async fn get(
     dc: &connectors::DataConnector,
-    services: Option<Vec<String>>,
-) -> connectors::Result<Vec<entities::route::Route>> {
-    Ok(dc.route.get(services).await?)
+    cmd: commands::route::GetRoute,
+) -> connectors::Result<replies::route::GetRouteReply> {
+    match dc.route.get(cmd.ids).await {
+        Ok(r) => Ok(replies::route::GetRouteReply {
+            error_code: errors::ErrorCode::ReplyOk,
+            error_name: None,
+            url: None,
+            items: Some(r),
+        }),
+        Err(e) => {
+            error!("get_route handler get route collection: {}", e);
+            let ec = errors::ErrorCode::DatabaseError;
+            Ok(replies::route::GetRouteReply {
+                error_code: ec.clone(),
+                error_name: Some(dc.error.get(&ec.to_string()).unwrap().clone()),
+                url: None,
+                items: None,
+            })
+        }
+    }
 }
 
 pub async fn get_command(
     dc: &connectors::DataConnector,
-    services: Option<Vec<String>>,
-) -> connectors::Result<Vec<entities::route::Command>> {
-    Ok(dc.route.get_command(services).await?)
+    cmd: commands::route::GetServiceCommand,
+) -> connectors::Result<replies::route::GetServiceCommandReply> {
+    match dc.route.get_command(cmd.services).await {
+        Ok(r) => Ok(replies::route::GetServiceCommandReply {
+            error_code: errors::ErrorCode::ReplyOk,
+            error_name: None,
+            url: None,
+            items: Some(r),
+        }),
+        Err(e) => {
+            error!("get_route_command handler get route collection: {}", e);
+            let ec = errors::ErrorCode::DatabaseError;
+            Ok(replies::route::GetServiceCommandReply {
+                error_code: ec.clone(),
+                error_name: Some(dc.error.get(&ec.to_string()).unwrap().clone()),
+                url: None,
+                items: None,
+            })
+        }
+    }
+}
+
+pub async fn get_event(
+    dc: &connectors::DataConnector,
+    cmd: commands::route::GetServiceEvent,
+) -> connectors::Result<replies::route::GetServiceEventReply> {
+    match dc.route.get_event(cmd.services).await {
+        Ok(r) => Ok(replies::route::GetServiceEventReply {
+            error_code: errors::ErrorCode::ReplyOk,
+            error_name: None,
+            url: None,
+            items: Some(r),
+        }),
+        Err(e) => {
+            error!("get_route_event handler get route collection: {}", e);
+            let ec = errors::ErrorCode::DatabaseError;
+            Ok(replies::route::GetServiceEventReply {
+                error_code: ec.clone(),
+                error_name: Some(dc.error.get(&ec.to_string()).unwrap().clone()),
+                url: None,
+                items: None,
+            })
+        }
+    }
 }
 
 pub async fn get_subscription(
     dc: &connectors::DataConnector,
-    services: Option<Vec<String>>,
-) -> connectors::Result<Vec<entities::route::Subscription>> {
-    Ok(dc.route.get_subscription(services).await?)
+    cmd: commands::route::GetServiceSubscription,
+) -> connectors::Result<replies::route::GetServiceSubscriptionReply> {
+    match dc.route.get_subscription(cmd.services).await {
+        Ok(r) => Ok(replies::route::GetServiceSubscriptionReply {
+            error_code: errors::ErrorCode::ReplyOk,
+            error_name: None,
+            url: None,
+            items: Some(r),
+        }),
+        Err(e) => {
+            error!("get_route_subscription handler get route collection: {}", e);
+            let ec = errors::ErrorCode::DatabaseError;
+            Ok(replies::route::GetServiceSubscriptionReply {
+                error_code: ec.clone(),
+                error_name: Some(dc.error.get(&ec.to_string()).unwrap().clone()),
+                url: None,
+                items: None,
+            })
+        }
+    }
+}
+
+pub async fn get_service(
+    dc: &connectors::DataConnector,
+    cmd: commands::route::GetService,
+) -> connectors::Result<replies::route::GetServiceReply> {
+    match dc.route.get_service(cmd.ids).await {
+        Ok(r) => Ok(replies::route::GetServiceReply {
+            error_code: errors::ErrorCode::ReplyOk,
+            error_name: None,
+            url: None,
+            items: Some(r),
+        }),
+        Err(e) => {
+            error!("get_service handler get service collection: {}", e);
+            let ec = errors::ErrorCode::DatabaseError;
+            Ok(replies::route::GetServiceReply {
+                error_code: ec.clone(),
+                error_name: Some(dc.error.get(&ec.to_string()).unwrap().clone()),
+                url: None,
+                items: None,
+            })
+        }
+    }
 }
 
 pub async fn add(
     dc: &connectors::DataConnector,
-    items: Vec<entities::route::Route>,
+    cmd: commands::route::AddRoute,
 ) -> connectors::Result<(
-    models::AddStrIdsReply,
+    replies::common::AddStrIdsReply,
     Option<Vec<events::route::OnRouteUpdate>>,
 )> {
-    let (result, ids) = dc.route.add(items).await?;
+    let (result, ids) = dc.route.add(cmd.items).await?;
     if result == errors::ErrorCode::ReplyOk {
         let v1 = ids.unwrap();
         let v2 = v1.clone();
@@ -44,12 +144,15 @@ pub async fn add(
 
 pub async fn remove(
     dc: &connectors::DataConnector,
-    ids: Vec<String>,
-) -> connectors::Result<(models::Reply, Option<Vec<events::route::OnRouteUpdate>>)> {
-    let result: errors::ErrorCode = dc.route.remove(ids.clone()).await?;
+    cmd: commands::route::RemoveRoute,
+) -> connectors::Result<(
+    replies::common::StandardReply,
+    Option<Vec<events::route::OnRouteUpdate>>,
+)> {
+    let result: errors::ErrorCode = dc.route.remove(cmd.ids.clone()).await?;
     if result == errors::ErrorCode::ReplyOk {
         Ok(get_ok_reply_events!(Some(vec![
-            events::route::OnRouteUpdate { services: ids }
+            events::route::OnRouteUpdate { services: cmd.ids }
         ])))
     } else {
         Ok(get_error_reply_events!(&result, dc.error))
@@ -60,7 +163,11 @@ pub async fn on_service_unavailable(
     _dc: &connectors::DataConnector,
     _rt: &router::Router,
     items: Vec<events::route::OnServiceUnavailable>,
-) -> connectors::Result<(models::Reply, Option<Vec<events::route::OnRouteUpdate>>)> {
+) -> connectors::Result<(
+    replies::common::StandardReply,
+    Option<Vec<events::route::OnRouteUpdate>>,
+)> {
+    //collect service unavailable info
     if true {
         let mut events = Vec::<events::route::OnRouteUpdate>::new();
         for item in &items {
@@ -77,12 +184,24 @@ pub async fn on_service_unavailable(
 pub async fn on_route_update(
     dc: &connectors::DataConnector,
     rt: &router::Router,
-    items: Vec<events::route::OnRouteUpdate>,
-) -> connectors::Result<models::Reply> {
-    if rt.is_local() {
+    _items: Vec<events::route::OnRouteUpdate>,
+) -> connectors::Result<replies::common::StandardReply> {
+    if rt.is_local {
         let c = dc.route.get_command(None).await?;
         let s = dc.route.get_subscription(None).await?;
         rt.update(c, s).await?;
+    } else {
+        //get from remote route
     }
     Ok(get_ok_reply!())
+}
+
+pub fn get_schema(rt: &router::Router, object_type: &String) -> connectors::Result<Option<String>> {
+    let ot = object_type.as_str();
+    if rt.schema.contains_key(ot){
+        Ok(Some(serde_json::to_string(&rt.schema.get(ot)).unwrap()))
+    }
+    else{
+        Ok(None)
+    }
 }

@@ -2,7 +2,7 @@
 use super::collections;
 #[cfg(test)]
 use super::tests::fakes;
-use super::{entities, settings};
+use super::{entities, settings, errors};
 #[cfg(all(not(test), feature = "mysql"))]
 use sqlx::MySqlPool;
 #[cfg(all(not(test), feature = "postgres"))]
@@ -12,6 +12,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
+
+pub const PROTO_HTTP: &str = "http";
+pub const PROTO_MQ: &str = "mq";
 
 #[cfg(not(test))]
 pub struct ExpHelper;
@@ -82,7 +85,7 @@ impl ExpHelper {
 }
 
 pub struct DataConnector {
-    pub error: HashMap<isize, String>,
+    pub error: HashMap<String, String>,
     #[cfg(not(test))]
     pub usr: collections::usr::UsrCollection,
     #[cfg(test)]
@@ -99,17 +102,16 @@ pub struct DataConnector {
 
 impl DataConnector {
     pub async fn new(
-        _error: Option<HashMap<isize, String>>,
-        _pg_db: Option<settings::PgDb>,
-        _my_sql_db: Option<settings::MySqlDb>,
+        _error: Option<HashMap<String, String>>,
+        _db: &settings::Database
     ) -> Result<DataConnector> {
         #[cfg(not(test))]
         let _exp_helper: &'static ExpHelper = &ExpHelper::new();
         #[cfg(all(not(test), feature = "postgres"))]
-        let dp = SqlDbProvider::new(&_pg_db.unwrap().connection_string).await?;
+        let dp = SqlDbProvider::new(&_db.connection_string).await?;
         #[cfg(all(not(test), feature = "mysql"))]
-        let dp = SqlDbProvider::new(&_my_sql_db.unwrap().connection_string).await?;
-        let mut error = HashMap::<isize, String>::new();
+        let dp = SqlDbProvider::new(&_db.connection_string).await?;
+        let mut error = HashMap::<String, String>::new();
         if _error.is_some() {
             error.extend(_error.unwrap());
         }
@@ -135,33 +137,12 @@ impl DataConnector {
     }
 
     #[cfg(not(test))]
-    fn errors_as_hashmap(items: Vec<entities::error::Error>) -> HashMap<isize, String> {
-        let mut error = HashMap::<isize, String>::new();
+    fn errors_as_hashmap(items: Vec<entities::error::Error>) -> HashMap<String, String> {
+        let mut error = HashMap::<String, String>::new();
         for item in items {
-            error.insert(item.id as isize, item.error_name);
+            error.insert(item.error_code, item.error_name);
         }
         error
-    }
-
-    pub fn get_errors(&self, ids: Option<Vec<i32>>) -> Result<Vec<entities::error::Error>> {
-        let is_ids = ids.is_some();
-        let mut ids_as_ht = HashMap::<isize, _>::new();
-        if is_ids {
-            for item in &ids.unwrap() {
-                ids_as_ht.insert(item.clone() as isize, 0);
-            }
-        }
-        let mut items = Vec::<entities::error::Error>::new();
-        for error in &self.error {
-            if is_ids && !ids_as_ht.contains_key(error.0) {
-                continue;
-            }
-            items.push(entities::error::Error {
-                id: (error.0.clone() as i32),
-                error_name: error.1.to_string(),
-            });
-        }
-        Ok(items)
     }
 }
 
@@ -187,16 +168,15 @@ impl SqlDbProvider {
     }
 
     pub async fn get_errors(&self) -> Result<Vec<entities::error::Error>> {
-        #[cfg(feature = "postgres")]
-        let mut pool: &PgPool = &self.pool;
-        #[cfg(feature = "mysql")]
-        let mut pool: &MySqlPool = &self.pool;
-        Ok(sqlx::query_as!(
-            entities::error::Error,
-            r#"SELECT id,error_name FROM webapi.error"#
+        Ok(
+            vec![entities::error::Error{
+                error_code: errors::ErrorCode::DatabaseError.to_string(),
+                error_name: "Database error".to_string()
+            },
+            entities::error::Error{
+                error_code: errors::ErrorCode::NotFoundError.to_string(),
+                error_name: "Some items with specified id is not found".to_string()
+            }]
         )
-        .fetch_all(&mut pool)
-        .await
-        .unwrap_or(Vec::<entities::error::Error>::new()))
     }
 }

@@ -1,5 +1,4 @@
-use super::super::{connectors, entities::usr, errors};
-use super::models;
+use super::super::{connectors, entities::usr, errors, replies};
 
 pub async fn get(
     dc: &connectors::DataConnector,
@@ -8,10 +7,10 @@ pub async fn get(
     Ok(dc.usr.get(ids).await?)
 }
 
-pub async fn signin(_dc: &connectors::DataConnector) -> connectors::Result<models::Reply> {
+pub async fn signin(_dc: &connectors::DataConnector) -> connectors::Result<replies::common::StandardReply> {
     Ok(get_ok_reply!())
 }
 
-pub async fn signup(_dc: &connectors::DataConnector) -> connectors::Result<models::Reply> {
+pub async fn signup(_dc: &connectors::DataConnector) -> connectors::Result<replies::common::StandardReply> {
     Ok(get_ok_reply!())
 }

@@ -24,10 +24,24 @@ impl RouteCollection {
         Ok(vec![])
     }
 
+    pub async fn get_event(
+        &self,
+        _services: Option<Vec<String>>,
+    ) -> connectors::Result<Vec<route::Event>> {
+        Ok(vec![])
+    }
+
     pub async fn get_subscription(
         &self,
         _services: Option<Vec<String>>,
     ) -> connectors::Result<Vec<route::Subscription>> {
+        Ok(vec![])
+    }
+
+    pub async fn get_service(
+        &self,
+        _services: Option<Vec<String>>,
+    ) -> connectors::Result<Vec<route::Service>> {
         Ok(vec![])
     }
 

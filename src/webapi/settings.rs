@@ -3,45 +3,27 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    pub _error: Option<HashMap<isize, String>>,
-    pub _access: Access,
-    pub _pg_db: PgDb,
-    pub _my_sql_db: MySqlDb,
-    pub _service: route::Route,
-    pub _router: Router
+    pub error: Option<HashMap<String, String>>,
+    pub access: Access,
+    pub database: HashMap<String, Database>,
+    pub router: Option<HashMap<String, String>>,
+    pub path: HashMap<String, route::ServicePath>,
+    pub service: HashMap<String, route::Route>,
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Access {
     pub authentication: Authentication,
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Authentication {
     pub server: HashMap<String, String>,
     pub client: Vec<route::ClientAccess>
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PgDb {
+pub struct Database {
     pub connection_string: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MySqlDb {
-    pub connection_string: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Router {
-    pub http_from: Option<String>,
-    pub mq_from: Option<String>,
-    pub local: Option<route::Route>
 }

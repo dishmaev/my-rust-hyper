@@ -1,20 +1,16 @@
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::error;
 use std::fmt;
 
-#[derive(Deserialize_repr, Serialize_repr, Debug, PartialEq, Copy, Clone)]
-#[repr(i16)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone, ToString, JsonSchema)]
 pub enum ErrorCode {
-    ReplyOk = 0,
-    ReplyErrorDatabase = -1,
+    ReplyOk,
+    FutureOk, //async command call result, use only with http proto
+    TooManyRequestsError, //if async queue or reply queue full, http proto return HTTP-status 429
+    DatabaseError,
     #[cfg(not(test))]
-    ReplyErrorNotFound = -100,
-}
-
-impl ErrorCode {
-    pub fn as_isize(self) -> isize {
-        self as isize
-    }
+    NotFoundError,
 }
 
 #[derive(Debug, Clone)]
@@ -138,6 +134,46 @@ impl error::Error for UnknownCommandError {
 }
 
 #[derive(Debug, Clone)]
+pub struct BadReplyCommandError;
+
+impl fmt::Display for BadReplyCommandError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "bad reply command error")
+    }
+}
+
+impl error::Error for BadReplyCommandError {
+    fn description(&self) -> &str {
+        "bad reply command error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CallCommandError;
+
+impl fmt::Display for CallCommandError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "call command error")
+    }
+}
+
+impl error::Error for CallCommandError {
+    fn description(&self) -> &str {
+        "call command error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct UnknownEventError;
 
 impl fmt::Display for UnknownEventError {
@@ -149,6 +185,26 @@ impl fmt::Display for UnknownEventError {
 impl error::Error for UnknownEventError {
     fn description(&self) -> &str {
         "unknown event error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SendEventError;
+
+impl fmt::Display for SendEventError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "send event error")
+    }
+}
+
+impl error::Error for SendEventError {
+    fn description(&self) -> &str {
+        "send event error"
     }
 
     fn cause(&self) -> Option<&(dyn error::Error)> {

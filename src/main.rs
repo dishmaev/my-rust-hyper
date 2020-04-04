@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate strum_macros;
 
 mod webapi;
 
@@ -29,6 +31,9 @@ async fn main() {
 
     const DEFAULT_PORT: u16 = 3456;
     const ENV_PORT: &str = "PORT";
+
+    const DB_PG: &str = "pg";
+    const DB_MYSQL: &str = "mysql";
 
     let log_setting_file: String =
         env::var(ENV_LOG_SETTINGS).unwrap_or(String::from(DEFAULT_LOG_SETTINGS));
@@ -64,36 +69,30 @@ async fn main() {
     let app_settings: settings::AppSettings =
         serde_json::from_str(&fs::read_to_string(app_setting_file).unwrap()).unwrap();
 
-    let data_connector = connectors::DataConnector::new(
-        app_settings._error,
-        Some(app_settings._pg_db),
-        Some(app_settings._my_sql_db),
+    #[cfg(feature = "postgres")]
+    let db = app_settings.database.get(DB_PG).unwrap();
+    #[cfg(feature = "mysql")]
+    let db = app_settings.database.get(DB_MYSQL).unwrap();
+
+    let data_connector = connectors::DataConnector::new(app_settings.error, db)
+        .await
+        .expect("error while data connector initialize");
+    let access_checker = access::AccessChecker::from_data_connector(
+        &data_connector,
+        &app_settings.access.authentication,
     )
     .await
-    .expect("error while data connector initialize");
-    let access_checker = access::AccessChecker::from_data_connector(&data_connector, &app_settings._access.authentication)
-        .await
-        .expect("error while access checker initialize");
+    .expect("error while access checker initialize");
 
-    let router = if app_settings._router.local.is_some() {
-        router::Router::new_local(
-            &data_connector,
-            app_settings._router.local.unwrap(),
-            app_settings._service,
-            &host,
-        )
-        .await
-        .expect("error while local router initialize")
-    } else {
-        router::Router::new_remote(
-            app_settings._router.http_from,
-            app_settings._router.mq_from,
-            app_settings._service,
-            &host,
-        )
-        .await
-        .expect("error while remote router initialize")
-    };
+    let router = router::Router::new(
+        &data_connector,
+        app_settings.router,
+        app_settings.path,
+        app_settings.service,
+        &host,
+    )
+    .await
+    .expect("error while remote router initialize");
 
     let router_arc = Arc::new(router);
 
@@ -109,12 +108,20 @@ async fn main() {
 
     let access_checker_arc = Arc::new(access_checker);
 
-    let command_executor = executors::CommandExecutor::new(access_checker_arc.clone(), router_arc.clone(), command_executor_control_sender.clone())
-        .await
-        .expect("error while command executor initialize");
-    let event_publisher = publishers::EventPublisher::new(access_checker_arc.clone(), router_arc.clone(), event_publisher_control_sender.clone())
-        .await
-        .expect("error while event publisher initialize");
+    let command_executor = executors::CommandExecutor::new(
+        access_checker_arc.clone(),
+        router_arc.clone(),
+        command_executor_control_sender.clone(),
+    )
+    .await
+    .expect("error while command executor initialize");
+    let event_publisher = publishers::EventPublisher::new(
+        access_checker_arc.clone(),
+        router_arc.clone(),
+        event_publisher_control_sender.clone(),
+    )
+    .await
+    .expect("error while event publisher initialize");
 
     let data_connector_arc = Arc::new(data_connector);
     let command_executor_arc = Arc::new(command_executor);

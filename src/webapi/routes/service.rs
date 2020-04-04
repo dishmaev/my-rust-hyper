@@ -1,5 +1,6 @@
 use super::super::{
-    access, connectors, entities::*, events, executors, handlers, publishers, router,
+    access, commands, connectors, entities::*, events, executors, handlers, publishers, router,
+    schema,
 };
 use super::{index, path};
 use bytes::buf::BufExt;
@@ -46,52 +47,73 @@ pub async fn service_route(
                     .collect()
             })
             .unwrap_or_else(HashMap::new);
-        if !params.contains_key("CorrelationId") {
+        if !params.contains_key("correlation_id") {
             return Ok(resp_with_code(StatusCode::BAD_REQUEST));
         }
-        let correlation_id = params.get("CorrelationId").unwrap();
+        let correlation_id = params.get("correlation_id").unwrap();
+        let reply_to = if params.contains_key("reply_to") {
+            Some(params.get("reply_to").unwrap())
+        } else {
+            None
+        };
         Ok(match parts.uri.path() {
-            path::ERROR_ITEMS => resp(dc.get_errors(None)),
-            path::ERROR_GET => resp(dc.get_errors(serde_json::from_reader(reader).unwrap())),
             path::USR_SIGHN_IN => resp(handlers::usr::signin(&dc).await),
             path::USR_SIGHN_UP => resp(handlers::usr::signup(&dc).await),
-            path::ROUTE_ITEMS => resp(handlers::route::get(&dc, None).await),
-            path::ROUTE_COMMAND_ITEMS => resp(handlers::route::get_command(&dc, None).await),
-            path::ROUTE_SUBSCIBTION_ITEMS => {
-                resp(handlers::route::get_subscription(&dc, None).await)
-            }
             path::ROUTE_GET => {
-                let services: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
-                if services.is_some() {
-                    resp(handlers::route::get(&dc, services).await)
+                let cmd: Option<commands::route::GetRoute> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::route::get(&dc, cmd.unwrap()).await)
                 } else {
-                    error!("get_routes handler: bad body");
+                    error!("get_route handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
             path::ROUTE_COMMAND_GET => {
-                let services: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
-                if services.is_some() {
-                    resp(handlers::route::get_command(&dc, services).await)
+                let cmd: Option<commands::route::GetServiceCommand> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::route::get_command(&dc, cmd.unwrap()).await)
                 } else {
-                    error!("get_route_commands handler: bad body");
+                    error!("get_route_command handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
+            path::ROUTE_EVENT_GET => {
+                let cmd: Option<commands::route::GetServiceEvent> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::route::get_event(&dc, cmd.unwrap()).await)
+                } else {
+                    error!("get_route_event handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
             path::ROUTE_SUBSCIBTION_GET => {
-                let services: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
-                if services.is_some() {
-                    resp(handlers::route::get_subscription(&dc, services).await)
+                let cmd: Option<commands::route::GetServiceSubscription> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::route::get_subscription(&dc, cmd.unwrap()).await)
                 } else {
-                    error!("get_route_subscriptions handler: bad body");
+                    error!("get_route_subscription handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
+            path::ROUTE_SERVICE_GET => {
+                let cmd: Option<commands::route::GetService> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::route::get_service(&dc, cmd.unwrap()).await)
+                } else {
+                    error!("get_service handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
             path::ROUTE_ADD => {
-                let items: Option<Vec<route::Route>> =
+                let cmd: Option<commands::route::AddRoute> =
                     serde_json::from_reader(reader).unwrap_or(None);
-                if items.is_some() {
-                    let res = match handlers::route::add(&dc, items.unwrap()).await {
+                if cmd.is_some() {
+                    let res = match handlers::route::add(&dc, cmd.unwrap()).await {
                         Ok(r) => r,
                         Err(e) => {
                             error!("handler: {}", e);
@@ -114,9 +136,10 @@ pub async fn service_route(
                 }
             }
             path::ROUTE_REMOVE => {
-                let ids: Option<Vec<String>> = serde_json::from_reader(reader).unwrap_or(None);
-                if ids.is_some() {
-                    let res = match handlers::route::remove(&dc, ids.unwrap()).await {
+                let cmd: Option<commands::route::RemoveRoute> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    let res = match handlers::route::remove(&dc, cmd.unwrap()).await {
                         Ok(r) => r,
                         Err(e) => {
                             error!("handler: {}", e);
@@ -139,11 +162,11 @@ pub async fn service_route(
                 }
             }
             path::ROUTE_EVENT_ON_SERVICE_UNAVAILABLE => {
-                let items: Option<Vec<events::route::OnServiceUnavailable>> =
+                let events: Option<Vec<events::route::OnServiceUnavailable>> =
                     serde_json::from_reader(reader).unwrap_or(None);
-                if items.is_some() {
+                if events.is_some() {
                     let res =
-                        match handlers::route::on_service_unavailable(&dc, &rt, items.unwrap())
+                        match handlers::route::on_service_unavailable(&dc, &rt, events.unwrap())
                             .await
                         {
                             Ok(r) => r,
@@ -168,50 +191,94 @@ pub async fn service_route(
                 }
             }
             path::EVENT_ON_ROUTE_UPDATE => {
-                let items: Option<Vec<events::route::OnRouteUpdate>> =
+                let events: Option<Vec<events::route::OnRouteUpdate>> =
                     serde_json::from_reader(reader).unwrap_or(None);
-                if items.is_some() {
-                    resp(handlers::route::on_route_update(&dc, &rt, items.unwrap()).await)
+                if events.is_some() {
+                    resp(handlers::route::on_route_update(&dc, &rt, events.unwrap()).await)
                 } else {
                     error!("on_route_update handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
             path::USR_ITEMS => resp(handlers::usr::get(&dc, None).await),
-            path::CAR_ITEMS => resp(handlers::car::get(&dc, None).await),
             path::CAR_GET => {
-                let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
-                if ids.is_some() {
-                    resp(handlers::car::get(&dc, ids).await)
+                let cmd: Option<commands::car::GetCar> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::car::get(&dc, cmd.unwrap()).await)
                 } else {
-                    error!("get_cars handler: bad body");
+                    error!("get_car handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
             path::CAR_ADD => {
-                let items: Option<Vec<car::Car>> = serde_json::from_reader(reader).unwrap_or(None);
-                if items.is_some() {
-                    resp(handlers::car::add(&dc, items.unwrap()).await)
+                let cmd: Option<commands::car::AddCar> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::car::add(&dc, cmd.unwrap()).await)
                 } else {
                     error!("add_cars handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::CAR_UPDATE => {
-                let items: Option<Vec<car::Car>> = serde_json::from_reader(reader).unwrap_or(None);
-                if items.is_some() {
-                    resp(handlers::car::update(&dc, &ce, items.unwrap()).await)
+            path::CAR_MODIFY => {
+                let cmd: Option<commands::car::ModifyCar> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::car::modify(&dc, &ce, cmd.unwrap()).await)
                 } else {
-                    error!("update_cars handler: bad body");
+                    error!("modify_cars handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
             path::CAR_REMOVE => {
-                let ids: Option<Vec<i32>> = serde_json::from_reader(reader).unwrap_or(None);
-                if ids.is_some() {
-                    resp(handlers::car::remove(&dc, ids.unwrap()).await)
+                let cmd: Option<commands::car::RemoveCar> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::car::remove(&dc, cmd.unwrap()).await)
                 } else {
                     error!("remove_cars handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
+            path::CAR_RESERVE => {
+                let cmd: Option<commands::car::ReserveCar> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if cmd.is_some() {
+                    resp(handlers::car::reserve(&dc, cmd.unwrap()).await)
+                } else {
+                    error!("reserve_cars handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
+            path::SCHEMA => {
+                if params.contains_key("object_type") {
+                    let ot = params.get("object_type").unwrap().as_str();
+                    if rt.schema.contains_key(ot) {
+                        resp_schema(&rt.schema.get(ot))
+                    } else {
+                        error!("schema handler: bad request");
+                        return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                    }
+                } else {
+                    error!("schema handler: bad request");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
+            path::ERROR => {
+                if params.contains_key("error_code") {
+                    let ec = params.get("error_code").unwrap().as_str();
+                    if dc.error.contains_key(ec) {
+                        resp(Ok(error::Error {
+                            error_code: ec.to_string(),
+                            error_name: dc.error.get(ec).unwrap().clone()
+                        }))
+                    } else {
+                        error!("error handler: bad body");
+                        return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                    }
+                } else {
+                    error!("error handler: bad request");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
@@ -247,6 +314,16 @@ where
 }
 
 fn resp_event<T>(res: T) -> Response<Body>
+where
+    T: ser::Serialize,
+{
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .body(Body::from(serde_json::to_string(&res).unwrap()))
+        .unwrap()
+}
+
+fn resp_schema<T>(res: T) -> Response<Body>
 where
     T: ser::Serialize,
 {

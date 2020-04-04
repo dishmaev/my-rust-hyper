@@ -76,7 +76,7 @@ impl CarCollection {
                 Err(e) => {
                     tx.rollback().await.unwrap();
                     error!("add_cars db insert: {}", e);
-                    return Ok((errors::ErrorCode::ReplyErrorDatabase, None));
+                    return Ok((errors::ErrorCode::DatabaseError, None));
                 }
             };
             #[cfg(feature = "mysql")]
@@ -89,7 +89,7 @@ impl CarCollection {
                 Err(e) => {
                     tx.rollback().await.unwrap();
                     error!("add_cars db insert: {}", e);
-                    return Ok((errors::ErrorCode::ReplyErrorDatabase, None));
+                    return Ok((errors::ErrorCode::DatabaseError, None));
                 }
             };
             #[cfg(feature = "mysql")]
@@ -101,7 +101,7 @@ impl CarCollection {
                 Err(e) => {
                     tx.rollback().await.unwrap();
                     error!("add_cars db insert: {}", e);
-                    return Ok((errors::ErrorCode::ReplyErrorDatabase, None));
+                    return Ok((errors::ErrorCode::DatabaseError, None));
                 }
             };
         }
@@ -109,13 +109,13 @@ impl CarCollection {
             Ok(_) => {}
             Err(e) => {
                 error!("add_cars db commit: {}", e);
-                return Ok((errors::ErrorCode::ReplyErrorDatabase, None));
+                return Ok((errors::ErrorCode::DatabaseError, None));
             }
         }
         Ok((errors::ErrorCode::ReplyOk, Some(ids)))
     }
 
-    pub async fn update(&self, items: Vec<car::Car>) -> connectors::Result<errors::ErrorCode> {
+    pub async fn modify(&self, items: Vec<car::Car>) -> connectors::Result<errors::ErrorCode> {
         #[cfg(feature = "postgres")]
         let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
@@ -136,7 +136,7 @@ impl CarCollection {
                 Err(e) => {
                     error!("update_cars db update: {}", e);
                     tx.rollback().await?;
-                    return Ok(errors::ErrorCode::ReplyErrorDatabase);
+                    return Ok(errors::ErrorCode::DatabaseError);
                 }
             };
             #[cfg(feature = "mysql")]
@@ -152,7 +152,7 @@ impl CarCollection {
                 Err(e) => {
                     error!("update_cars db update: {}", e);
                     tx.rollback().await?;
-                    return Ok(errors::ErrorCode::ReplyErrorDatabase);
+                    return Ok(errors::ErrorCode::DatabaseError);
                 }
             };
         }
@@ -161,15 +161,16 @@ impl CarCollection {
                 Ok(_) => {}
                 Err(e) => {
                     error!("update_cars db commit: {}", e);
-                    return Ok(errors::ErrorCode::ReplyErrorDatabase);
+                    return Ok(errors::ErrorCode::DatabaseError);
                 }
             }
             Ok(errors::ErrorCode::ReplyOk)
         } else {
             tx.rollback().await?;
-            Ok(errors::ErrorCode::ReplyErrorNotFound)
+            Ok(errors::ErrorCode::NotFoundError)
         }
     }
+    
     pub async fn remove(&self, ids: Vec<i32>) -> connectors::Result<errors::ErrorCode> {
         #[cfg(feature = "postgres")]
         let pool: &PgPool = &self.data_provider.pool;
@@ -188,18 +189,18 @@ impl CarCollection {
                         }
                         Err(e) => {
                             error!("remove_cars db commit: {}", e);
-                            return Ok(errors::ErrorCode::ReplyErrorDatabase);
+                            return Ok(errors::ErrorCode::DatabaseError);
                         }
                     }
                 } else {
                     tx.rollback().await?;
-                    Ok(errors::ErrorCode::ReplyErrorNotFound)
+                    Ok(errors::ErrorCode::NotFoundError)
                 }
             }
             Err(e) => {
                 error!("remove_cars db delete: {}", e);
                 tx.rollback().await?;
-                Ok(errors::ErrorCode::ReplyErrorDatabase)
+                Ok(errors::ErrorCode::DatabaseError)
             }
         }
     }

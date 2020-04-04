@@ -1,8 +1,7 @@
-
 #[macro_export]
 macro_rules! get_ok_reply {
     () => {
-        models::Reply {
+        replies::common::StandardReply {
             error_code: errors::ErrorCode::ReplyOk,
             error_name: None,
         }
@@ -12,17 +11,20 @@ macro_rules! get_ok_reply {
 #[macro_export]
 macro_rules! get_ok_reply_events {
     ($events:expr) => {
-        (models::Reply {
-            error_code: errors::ErrorCode::ReplyOk,
-            error_name: None,
-        }, $events )
+        (
+            replies::common::StandardReply {
+                error_code: errors::ErrorCode::ReplyOk,
+                error_name: None,
+            },
+            $events,
+        )
     };
 }
 
 #[macro_export]
 macro_rules! get_ok_add_int_ids_reply {
     ($ids:expr) => {
-        models::AddIntIdsReply {
+        replies::common::AddIntIdsReply {
             error_code: errors::ErrorCode::ReplyOk,
             error_name: None,
             ids: Some($ids),
@@ -33,18 +35,21 @@ macro_rules! get_ok_add_int_ids_reply {
 #[macro_export]
 macro_rules! get_ok_add_int_ids_reply_events {
     ($ids:expr, $events:expr) => {
-        (models::AddIntIdsReply {
-            error_code: errors::ErrorCode::ReplyOk,
-            error_name: None,
-            ids: Some($ids),
-        }, $events)
+        (
+            replies::common::AddIntIdsReply {
+                error_code: errors::ErrorCode::ReplyOk,
+                error_name: None,
+                ids: Some($ids),
+            },
+            $events,
+        )
     };
 }
 
 #[macro_export]
 macro_rules! get_ok_add_str_ids_reply {
     ($ids:expr) => {
-        models::AddStrIdsReply {
+        replies::common::AddStrIdsReply {
             error_code: errors::ErrorCode::ReplyOk,
             error_name: None,
             ids: Some($ids),
@@ -55,20 +60,23 @@ macro_rules! get_ok_add_str_ids_reply {
 #[macro_export]
 macro_rules! get_ok_add_str_ids_reply_events {
     ($ids:expr, $events:expr) => {
-        (models::AddStrIdsReply {
-            error_code: errors::ErrorCode::ReplyOk,
-            error_name: None,
-            ids: Some($ids),
-        }, $events)
+        (
+            replies::common::AddStrIdsReply {
+                error_code: errors::ErrorCode::ReplyOk,
+                error_name: None,
+                ids: Some($ids),
+            },
+            $events,
+        )
     };
 }
 
 #[macro_export]
 macro_rules! get_error_reply {
     ($ec:expr, $en:expr) => {
-        models::Reply {
+        replies::common::StandardReply {
             error_code: $ec.clone(),
-            error_name: Some($en.get(&$ec.as_isize()).unwrap().clone()),
+            error_name: Some($en.get(&$ec.to_string()).unwrap().clone()),
         }
     };
 }
@@ -76,20 +84,23 @@ macro_rules! get_error_reply {
 #[macro_export]
 macro_rules! get_error_reply_events {
     ($ec:expr, $en:expr) => {
-        (models::Reply {
-            error_code: $ec.clone(),
-            error_name: Some($en.get(&$ec.as_isize()).unwrap().clone()),
-        }, None)
+        (
+            replies::common::StandardReply {
+                error_code: $ec.clone(),
+                error_name: Some($en.get(&$ec.to_string()).unwrap().clone()),
+            },
+            None,
+        )
     };
 }
 
 #[macro_export]
 macro_rules! get_error_add_int_ids_reply {
     ($ec:expr, $en:expr) => {
-        models::AddIntIdsReply {
+        replies::common::AddIntIdsReply {
             error_code: $ec.clone(),
-            error_name: Some($en.get(&$ec.as_isize()).unwrap().clone()),
-            ids: None
+            error_name: Some($en.get(&$ec.to_string()).unwrap().clone()),
+            ids: None,
         }
     };
 }
@@ -97,32 +108,38 @@ macro_rules! get_error_add_int_ids_reply {
 #[macro_export]
 macro_rules! get_error_add_int_ids_reply_events {
     ($ec:expr, $en:expr) => {
-        (models::AddIntIdsReply {
-            error_code: $ec.clone(),
-            error_name: Some($en.get(&$ec.as_isize()).unwrap().clone()),
-            ids: None
-        }, None)
+        (
+            replies::common::AddIntIdsReply {
+                error_code: $ec.clone(),
+                error_name: Some($en.get(&$ec.to_string()).unwrap().clone()),
+                ids: None,
+            },
+            None,
+        )
     };
 }
 
 #[macro_export]
 macro_rules! get_error_add_str_ids_reply {
     ($ec:expr, $en:expr) => {
-        (models::AddStrIdsReply {
-            error_code: $ec.clone(),
-            error_name: Some($en.get(&$ec.as_isize()).unwrap().clone()),
-            ids: None
-        }, None)
+        (
+            replies::common::AddStrIdsReply {
+                error_code: $ec.clone(),
+                error_name: Some($en.get(&$ec.to_string()).unwrap().clone()),
+                ids: None,
+            },
+            None,
+        )
     };
 }
 
 #[macro_export]
 macro_rules! get_error_add_str_ids_reply_events {
     ($ec:expr, $en:expr) => {
-        models::AddStrIdsReply {
+        replies::common::AddStrIdsReply {
             error_code: $ec.clone(),
             error_name: Some($en.get(&$ec.as_isize()).unwrap().clone()),
-            ids: None
+            ids: None,
         }
     };
 }

@@ -1,14 +1,15 @@
 use super::entities::route;
-use super::{connectors, entities, errors};
+use super::{connectors, entities, errors, schema, settings};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 
 pub struct Router {
-    sn: String,
-    loc_rt_sn: Option<String>,
+    service: HashMap<String, HashMap<String, route::ServicePath>>,
     chm: RwLock<HashMap<String, entities::route::CommandRoute>>,
     shm: RwLock<HashMap<String, Vec<entities::route::SubscriptionRoute>>>,
+    pub schema: HashMap<&'static str, schemars::schema::RootSchema>,
+    pub is_local: bool,
 }
 
 impl Router {
@@ -23,9 +24,9 @@ impl Router {
                     item.object_type.clone(),
                     entities::route::CommandRoute {
                         object_type: item.object_type.clone(),
+                        reply_type: item.reply_type.clone(),
                         service_name: item.service_name,
-                        http_to: item.http_to,
-                        mq_to: item.mq_to,
+                        path: item.path.unwrap(),
                     },
                 );
             }
@@ -52,8 +53,7 @@ impl Router {
             sr.push(entities::route::SubscriptionRoute {
                 object_type: item.object_type.clone(),
                 service_name: item.service_name,
-                http_to: item.http_to,
-                mq_to: item.mq_to,
+                path: item.path.unwrap(),
             });
             lot = Some(item.object_type);
         }
@@ -64,66 +64,54 @@ impl Router {
         hm
     }
 
-    fn update_host_mask(host: &str, service: &mut route::Route) {
-        for c in &mut service.command {
-            if c.http_to.is_some() {
-                let v = c.http_to.as_ref().unwrap();
-                c.http_to = Some(v.replace("{host}", host));
-            }
-        }
-        for s in &mut service.subscription {
-            if s.http_to.is_some() {
-                let v = s.http_to.as_ref().unwrap();
-                s.http_to = Some(v.replace("{host}", host));
-            }
-        }
-        service.http_helth = service.http_helth.replace("{host}", host);
+    pub fn update_host_mask(host: &str, path: &mut route::ServicePath) {
+        path.helth = path.helth.replace("{host}", host);
+        path.schema = path.schema.replace("{host}", host);
+        path.reply_to = path.reply_to.replace("{host}", host);
+        path.error = path.error.replace("{host}", host);
+        path.request = Some(path.request.as_ref().unwrap().replace("{host}", host));
+        path.event = Some(path.event.as_ref().unwrap().replace("{host}", host));
     }
 
-    pub fn is_local(&self) -> bool {
-        self.loc_rt_sn.is_some()
-    }
-
-    pub async fn new_remote(
-        _http_from: Option<String>,
-        _mq_from: Option<String>,
-        mut service: route::Route,
-        host: &str,
-    ) -> connectors::Result<Router> {
-        Router::update_host_mask(host, &mut service);
-        let c = Vec::<entities::route::Command>::new();
-        let s = Vec::<entities::route::Subscription>::new();
-        Ok(Router {
-            sn: service.service_name,
-            loc_rt_sn: None,
-            chm: RwLock::new(Router::make_command_hash_map(c)),
-            shm: RwLock::new(Router::make_subscription_hash_map(s)),
-        })
-    }
-
-    pub async fn new_local(
+    pub async fn new(
         dc: &connectors::DataConnector,
-        mut service: route::Route,
-        mut local_router: route::Route,
+        router: Option<HashMap<String, String>>,
+        mut path: HashMap<String, route::ServicePath>,
+        mut service: HashMap<String, route::Route>,
         host: &str,
     ) -> connectors::Result<Router> {
-        Router::update_host_mask(host, &mut service);
-        Router::update_host_mask(host, &mut local_router);
-        let sn = service.service_name.clone();
-        let loc_rt_sn = local_router.service_name.clone();
-        dc.route.add(vec![local_router]).await?;
-        debug!("add local route");
-        dc.route.add(vec![service]).await?;
-        debug!("add service route");
+        for p in path.values_mut() {
+            Router::update_host_mask(host, p);
+        }
+        for item in service.iter_mut() {
+            item.1.service_name = Some(item.0.to_string());
+        }
+        for item in service.values_mut() {
+            if item.path.is_none() {
+                item.path = Some(path.clone());
+            }
+        }
+        let mut sv = HashMap::<String, HashMap<String, route::ServicePath>>::new();
+        for item in service.iter() {
+            sv.insert(item.0.to_string(), item.1.path.as_ref().unwrap().clone());
+        }
+        let is_local = router.is_some();
+        if is_local{
+            dc.route.add(service.values().cloned().collect()).await?;
+        }
+        else{
+            //call remote route using self.router hashmap with proto/to with command AddRoute
+        }
         Ok(Router {
-            sn: sn,
-            loc_rt_sn: Some(loc_rt_sn),
+            schema: schema::make_schema(),
+            service: sv,
             chm: RwLock::new(Router::make_command_hash_map(
                 dc.route.get_command(None).await?,
             )),
             shm: RwLock::new(Router::make_subscription_hash_map(
                 dc.route.get_subscription(None).await?,
             )),
+            is_local: is_local,
         })
     }
 
@@ -162,13 +150,16 @@ impl Router {
     }
 
     pub async fn shutdown(&self, dc: Arc<connectors::DataConnector>) -> connectors::Result<()> {
-        if self.loc_rt_sn.is_some() {
-            dc.route
-                .remove(vec![self.loc_rt_sn.as_ref().unwrap().to_string()])
-                .await?;
-            debug!("remove local route");
+        let mut s = Vec::<String>::new();
+        for item in self.service.keys() {
+            s.push(item.to_string());
         }
-        dc.route.remove(vec![self.sn.clone()]).await?;
+        if self.is_local {
+            dc.route.remove(s).await?;
+        }
+        else{
+            //call remote router with command RemoveRoute
+        }
         debug!("remove service route");
         Ok({})
     }
