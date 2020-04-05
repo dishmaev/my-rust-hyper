@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize, Clone, JsonSchema)]
 pub struct GetRoute {
     pub filter: Option<String>,
-    pub ids: Option<Vec<String>>,
+    pub services: Option<Vec<String>>,
 }
 
 impl traits::ObjectType for GetRoute {
@@ -27,7 +27,7 @@ impl traits::ObjectType for AddRoute {
 
 #[derive(Deserialize, Serialize, Clone, JsonSchema)]
 pub struct RemoveRoute {
-    pub ids: Vec<String>,
+    pub services: Vec<String>,
 }
 
 impl traits::ObjectType for RemoveRoute {
@@ -75,7 +75,7 @@ impl traits::ObjectType for GetServiceSubscription {
 #[derive(Deserialize, Serialize, Clone, JsonSchema)]
 pub struct GetService {
     pub filter: Option<String>,
-    pub ids: Option<Vec<String>>,
+    pub names: Option<Vec<String>>,
 }
 
 impl traits::ObjectType for GetService {

@@ -3,7 +3,6 @@ use super::super::{connectors, entities::car, errors};
 use sqlx::postgres::{PgPool, PgQueryAs};
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
-use sqlx::{Cursor, Executor, Row};
 use std::convert::TryFrom;
 use std::sync::Arc;
 
@@ -25,13 +24,13 @@ impl CarCollection {
 
     pub async fn get(&self, ids: Option<Vec<i32>>) -> connectors::Result<Vec<car::Car>> {
         #[cfg(feature = "postgres")]
-        let mut pool: &PgPool = &self.data_provider.pool;
+        let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
-        let mut pool: &MySqlPool = &self.data_provider.pool;
+        let pool: &MySqlPool = &self.data_provider.pool;
         if ids.is_none() {
             Ok(
                 sqlx::query_as!(car::Car, r#"SELECT id,car_name FROM webapi.car"#)
-                    .fetch_all(&mut pool)
+                    .fetch_all(pool)
                     .await?,
             )
         } else {
@@ -40,7 +39,7 @@ impl CarCollection {
             let items: Vec<car::Car> = sqlx::query_as(
                 &query
             )
-            .fetch_all(&mut pool).await?;
+            .fetch_all(pool).await?;
             Ok(items)
         }
     }

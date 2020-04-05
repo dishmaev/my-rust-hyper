@@ -1,6 +1,5 @@
 use super::super::{
     access, commands, connectors, entities::*, events, executors, handlers, publishers, router,
-    schema,
 };
 use super::{index, path};
 use bytes::buf::BufExt;
@@ -271,7 +270,7 @@ pub async fn service_route(
                     if dc.error.contains_key(ec) {
                         resp(Ok(error::Error {
                             error_code: ec.to_string(),
-                            error_name: dc.error.get(ec).unwrap().clone()
+                            error_name: dc.error.get(ec).unwrap().clone(),
                         }))
                     } else {
                         error!("error handler: bad body");

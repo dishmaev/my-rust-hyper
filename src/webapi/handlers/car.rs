@@ -1,4 +1,4 @@
-use super::super::{commands, connectors, entities, errors, executors, replies};
+use super::super::{commands, connectors, errors, executors, replies};
 
 pub async fn get(
     dc: &connectors::DataConnector,
@@ -43,7 +43,7 @@ pub async fn modify(
     ce: &executors::CommandExecutor,
     cmd: commands::car::ModifyCar,
 ) -> connectors::Result<replies::common::StandardReply> {
-    let c: replies::common::StandardReply = ce
+    let _c: replies::common::StandardReply = ce
         .call(commands::car::ReserveCar { services: vec![1] })
         .await?;
     let result: errors::ErrorCode = dc.car.modify(cmd.items).await?;

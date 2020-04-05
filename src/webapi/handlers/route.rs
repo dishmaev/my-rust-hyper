@@ -1,12 +1,12 @@
 use super::super::{
-    commands, connectors, entities, errors, events, traits, executors, publishers, replies, router,
+    commands, connectors, errors, events, replies, router,
 };
 
 pub async fn get(
     dc: &connectors::DataConnector,
     cmd: commands::route::GetRoute,
 ) -> connectors::Result<replies::route::GetRouteReply> {
-    match dc.route.get(cmd.ids).await {
+    match dc.route.get(cmd.services).await {
         Ok(r) => Ok(replies::route::GetRouteReply {
             error_code: errors::ErrorCode::ReplyOk,
             error_name: None,
@@ -102,7 +102,7 @@ pub async fn get_service(
     dc: &connectors::DataConnector,
     cmd: commands::route::GetService,
 ) -> connectors::Result<replies::route::GetServiceReply> {
-    match dc.route.get_service(cmd.ids).await {
+    match dc.route.get_service(cmd.names).await {
         Ok(r) => Ok(replies::route::GetServiceReply {
             error_code: errors::ErrorCode::ReplyOk,
             error_name: None,
@@ -149,10 +149,10 @@ pub async fn remove(
     replies::common::StandardReply,
     Option<Vec<events::route::OnRouteUpdate>>,
 )> {
-    let result: errors::ErrorCode = dc.route.remove(cmd.ids.clone()).await?;
+    let result: errors::ErrorCode = dc.route.remove(cmd.services.clone()).await?;
     if result == errors::ErrorCode::ReplyOk {
         Ok(get_ok_reply_events!(Some(vec![
-            events::route::OnRouteUpdate { services: cmd.ids }
+            events::route::OnRouteUpdate { services: cmd.services }
         ])))
     } else {
         Ok(get_error_reply_events!(&result, dc.error))
@@ -194,14 +194,4 @@ pub async fn on_route_update(
         //get from remote route
     }
     Ok(get_ok_reply!())
-}
-
-pub fn get_schema(rt: &router::Router, object_type: &String) -> connectors::Result<Option<String>> {
-    let ot = object_type.as_str();
-    if rt.schema.contains_key(ot){
-        Ok(Some(serde_json::to_string(&rt.schema.get(ot)).unwrap()))
-    }
-    else{
-        Ok(None)
-    }
 }

@@ -162,14 +162,14 @@ impl Router {
         }
         let is_local = remote_router.is_none();
         let hp = providers::HttpProvider::new().await?;
-        let mut commands = Vec::<route::ServiceCommand>::new();
-        let mut subscriptions = Vec::<route::ServiceSubscription>::new();
+        let mut _commands = Vec::<route::ServiceCommand>::new();
+        let mut _subscriptions = Vec::<route::ServiceSubscription>::new();
         if is_local {
             &dc.route.add(service.values().cloned().collect()).await?;
             let gc = &dc.route.get_command(None).await?;
             let gs = &dc.route.get_subscription(None).await?;
-            commands = gc.to_vec();
-            subscriptions = gs.to_vec();
+            _commands = gc.to_vec();
+            _subscriptions = gs.to_vec();
         } else {
             if !remote_router
                 .as_ref()
@@ -228,14 +228,14 @@ impl Router {
                 && reply_command.as_ref().unwrap().error_code == errors::ErrorCode::ReplyOk
                 && reply_subscription.as_ref().unwrap().error_code == errors::ErrorCode::ReplyOk
             {
-                commands = reply_command
+                _commands = reply_command
                     .as_ref()
                     .unwrap()
                     .items
                     .as_ref()
                     .unwrap()
                     .to_vec();
-                subscriptions = reply_subscription
+                _subscriptions = reply_subscription
                     .as_ref()
                     .unwrap()
                     .items
@@ -253,8 +253,8 @@ impl Router {
             schema: schema::make_schema(),
             rr: remote_router,
             sv: sv,
-            chm: RwLock::new(Router::make_command_hash_map(commands.to_vec())),
-            shm: RwLock::new(Router::make_subscription_hash_map(subscriptions.to_vec())),
+            chm: RwLock::new(Router::make_command_hash_map(_commands)),
+            shm: RwLock::new(Router::make_subscription_hash_map(_subscriptions)),
             is_local: is_local,
         })
     }
@@ -322,7 +322,7 @@ impl Router {
                     &correlation_id,
                     token.to_string(),
                     Body::from(
-                        serde_json::to_string(&commands::route::RemoveRoute { ids: s }).unwrap(),
+                        serde_json::to_string(&commands::route::RemoveRoute { services: s }).unwrap(),
                     ),
                 )
                 .await?;
@@ -331,8 +331,7 @@ impl Router {
                 serde_json::from_reader(reader).unwrap_or(None);
             if reply.is_some() && reply.as_ref().unwrap().error_code == errors::ErrorCode::ReplyOk {
                 debug!("remove service route");
-            }
-            else{
+            } else {
                 warn!("some errors while remove service route");
             }
         }

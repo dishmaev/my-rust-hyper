@@ -1,5 +1,5 @@
-use super::{commands, connectors, events, replies, traits::ObjectType};
-use schemars::{schema_for, JsonSchema};
+use super::{commands, events, replies, traits::ObjectType};
+use schemars::schema_for;
 use std::collections::HashMap;
 
 pub fn make_schema() -> HashMap<&'static str, schemars::schema::RootSchema> {

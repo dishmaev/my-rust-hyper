@@ -8,7 +8,7 @@ pub struct EventPublisher {
     ac: Arc<access::AccessChecker>,
     rt: Arc<router::Router>,
     hp: providers::HttpProvider,
-    cs: mpsc::Sender<workers::SignalCode>,
+    _cs: mpsc::Sender<workers::SignalCode>,
 }
 
 impl EventPublisher {
@@ -21,12 +21,12 @@ impl EventPublisher {
             ac: ac,
             rt: rt,
             hp: providers::HttpProvider::new().await?,
-            cs: cs,
+            _cs: cs,
         })
     }
 
     pub async fn send_signal(&self, signal_code: workers::SignalCode) -> connectors::Result<()> {
-        let mut s = self.cs.clone();
+        let mut s = self._cs.clone();
         match s.send(signal_code).await {
             Ok(_) => Ok({}),
             Err(e) => {

@@ -89,7 +89,7 @@ CREATE table service_command (
 	"service_name" text NOT NULL,
 	object_type text NOT NULL,
 	"description" text NOT NULL,
-	reply_type text NULL,
+	reply_type text NOT NULL,
 	CONSTRAINT service_command_pk PRIMARY KEY ("service_name", object_type),
 	CONSTRAINT service_command_service_name_fk FOREIGN KEY ("service_name") REFERENCES webapi.service("name")
 );

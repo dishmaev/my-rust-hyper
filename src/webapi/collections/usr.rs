@@ -23,15 +23,15 @@ impl UsrCollection {
 
     pub async fn get(&self, ids: Option<Vec<i32>>) -> connectors::Result<Vec<usr::Usr>> {
         #[cfg(feature = "postgres")]
-        let mut pool: &PgPool = &self.data_provider.pool;
+        let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
-        let mut pool: &MySqlPool = &self.data_provider.pool;
+        let pool: &MySqlPool = &self.data_provider.pool;
         if ids.is_none() {
             Ok(sqlx::query_as!(
                 usr::Usr,
                 r#"SELECT id,usr_name,usr_password FROM webapi.usr"#
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?)
         } else {
             let query = self.exp_helper
@@ -39,7 +39,7 @@ impl UsrCollection {
             let items: Vec<usr::Usr> = sqlx::query_as(
                 &query
             )
-            .fetch_all(&mut pool).await?;
+            .fetch_all(pool).await?;
             Ok(items)
         }
     }

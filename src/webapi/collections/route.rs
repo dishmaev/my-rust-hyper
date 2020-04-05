@@ -29,16 +29,16 @@ impl RouteCollection {
         services: Option<Vec<String>>,
     ) -> connectors::Result<Vec<route::ServiceCommand>> {
         #[cfg(feature = "postgres")]
-        let mut pool: &PgPool = &self.data_provider.pool;
+        let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
-        let mut pool: &MySqlPool = &self.data_provider.pool;
+        let pool: &MySqlPool = &self.data_provider.pool;
         let mut items = Vec::<route::ServiceCommand>::new();
         if services.is_none() {
             let recs = sqlx::query!(
                 r#"SELECT service_name, priority, object_type, description, reply_type
             FROM webapi.v_service_command"#,
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?;
             for rec in recs {
                 items.push(route::ServiceCommand {
@@ -53,10 +53,10 @@ impl RouteCollection {
         } else {
             let query = self.exp_helper.get_select_str_exp(
                 "webapi.v_service_command",
-                "id",
+                "service_name",
                 &services.unwrap(),
             );
-            let mut cursor = sqlx::query(&query).fetch(&mut pool);
+            let mut cursor = sqlx::query(&query).fetch(pool);
             while let Some(rec) = cursor.next().await? {
                 items.push(route::ServiceCommand {
                     service_name: rec.get(0),
@@ -68,39 +68,24 @@ impl RouteCollection {
                 })
             }
         }
-
-        let s1 = "s1";
-        let s2 = "s2";
-
-        for i in 0..20 {
+        for mut item in &mut items {
             let recs = sqlx::query!(
-                r#"SELECT proto, "to" FROM webapi.v_service_command_path
+                r#"SELECT proto, "to" FROM webapi.v_service_command_path 
                     WHERE service_name = $1 AND object_type = $2"#,
-                &s1,
-                &s2
+                item.service_name.as_ref().unwrap(),
+                &item.object_type
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?;
+            let mut p = HashMap::<String, String>::new();
+            for rec in recs {
+                p.insert(
+                    rec.proto.as_ref().unwrap().to_string(),
+                    rec.to.as_ref().unwrap().to_string(),
+                );
+            }
+            item.path = Some(p);
         }
-
-        // for item in &items {
-        //     let recs = sqlx::query!(
-        //         r#"SELECT proto, "to" FROM webapi.v_service_command_path
-        //             WHERE service_name = $1 AND object_type = $2"#,
-        //         item.service_name.as_ref().unwrap(),
-        //         &item.object_type
-        //     )
-        //     .fetch_all(&mut pool)
-        //     .await?;
-        //     let mut p = HashMap::<String, String>::new();
-        //     for rec in recs {
-        //         p.insert(
-        //             rec.proto.as_ref().unwrap().to_string(),
-        //             rec.to.as_ref().unwrap().to_string(),
-        //         );
-        //     }
-        //     // item.path = Some(p);
-        // }
         Ok(items)
     }
 
@@ -109,25 +94,24 @@ impl RouteCollection {
         services: Option<Vec<String>>,
     ) -> connectors::Result<Vec<route::ServiceEvent>> {
         #[cfg(feature = "postgres")]
-        let mut pool: &PgPool = &self.data_provider.pool;
+        let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
-        let mut pool: &MySqlPool = &self.data_provider.pool;
+        let pool: &MySqlPool = &self.data_provider.pool;
         if services.is_none() {
             Ok(sqlx::query_as!(
                 route::ServiceEvent,
                 r#"SELECT service_name, object_type, description
             FROM webapi.v_service_event"#
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?)
         } else {
             let query = self.exp_helper.get_select_str_exp(
                 "webapi.v_service_event",
-                "id",
+                "service_name",
                 &services.unwrap(),
             );
-            let items: Vec<route::ServiceEvent> =
-                sqlx::query_as(&query).fetch_all(&mut pool).await?;
+            let items: Vec<route::ServiceEvent> = sqlx::query_as(&query).fetch_all(pool).await?;
             Ok(items)
         }
     }
@@ -137,9 +121,9 @@ impl RouteCollection {
         services: Option<Vec<String>>,
     ) -> connectors::Result<Vec<route::ServiceSubscription>> {
         #[cfg(feature = "postgres")]
-        let mut pool: &PgPool = &self.data_provider.pool;
+        let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
-        let mut pool: &MySqlPool = &self.data_provider.pool;
+        let pool: &MySqlPool = &self.data_provider.pool;
         let mut items = Vec::<route::ServiceSubscription>::new();
         if services.is_none() {
             let recs = sqlx::query!(
@@ -147,7 +131,7 @@ impl RouteCollection {
             FROM webapi."v_service_subscription"
             "#,
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?;
             for rec in recs {
                 items.push(route::ServiceSubscription {
@@ -159,10 +143,10 @@ impl RouteCollection {
         } else {
             let query = self.exp_helper.get_select_str_exp(
                 "webapi.v_service_subscription",
-                "id",
+                "service_name",
                 &services.unwrap(),
             );
-            let mut cursor = sqlx::query(&query).fetch(&mut pool);
+            let mut cursor = sqlx::query(&query).fetch(pool);
             while let Some(rec) = cursor.next().await? {
                 items.push(route::ServiceSubscription {
                     service_name: rec.get(0),
@@ -178,7 +162,7 @@ impl RouteCollection {
                 item.service_name.as_ref().unwrap(),
                 &item.object_type
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?;
             let mut p = HashMap::<String, String>::new();
             for rec in recs {
@@ -194,43 +178,44 @@ impl RouteCollection {
 
     pub async fn get_service(
         &self,
-        services: Option<Vec<String>>,
+        names: Option<Vec<String>>,
     ) -> connectors::Result<Vec<route::Service>> {
         #[cfg(feature = "postgres")]
-        let mut pool: &PgPool = &self.data_provider.pool;
+        let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
-        let mut pool: &MySqlPool = &self.data_provider.pool;
-        if services.is_none() {
+        let pool: &MySqlPool = &self.data_provider.pool;
+        if names.is_none() {
             Ok(sqlx::query_as!(
                 route::Service,
                 r#"SELECT name, description, priority
             FROM webapi.v_service"#
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?)
         } else {
             let query =
                 self.exp_helper
-                    .get_select_str_exp("webapi.v_service", "id", &services.unwrap());
-            let items: Vec<route::Service> = sqlx::query_as(&query).fetch_all(&mut pool).await?;
+                    .get_select_str_exp("webapi.v_service", "namd", &names.unwrap());
+            let items: Vec<route::Service> = sqlx::query_as(&query).fetch_all(pool).await?;
             Ok(items)
         }
     }
 
-    pub async fn get(&self, ids: Option<Vec<String>>) -> connectors::Result<Vec<route::Route>> {
+    pub async fn get(&self, services: Option<Vec<String>>) -> connectors::Result<Vec<route::Route>> {
         #[cfg(feature = "postgres")]
-        let mut pool: &PgPool = &self.data_provider.pool;
+        let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
-        let mut pool: &MySqlPool = &self.data_provider.pool;
+        let pool: &MySqlPool = &self.data_provider.pool;
         let mut items = Vec::<route::Route>::new();
+        let is_services_some = services.is_some();
         let query =
             self.exp_helper
-                .get_select_str_exp("webapi.v_service", "name", &ids.as_ref().unwrap());
-        let mut cursor = if ids.is_none() {
+                .get_select_str_exp("webapi.v_service", "name", &services.unwrap_or_default());
+        let mut cursor = if !is_services_some {
             sqlx::query(r#"SELECT "name", "description", "priority" FROM webapi.v_service"#)
-                .fetch(&mut pool)
+                .fetch(pool)
         } else {
-            sqlx::query(&query).fetch(&mut pool)
+            sqlx::query(&query).fetch(pool)
         };
         while let Some(service_rec) = cursor.next().await? {
             let service_name: String = service_rec.get(0);
@@ -240,7 +225,7 @@ impl RouteCollection {
                     FROM webapi.v_service_command WHERE service_name = $1"#,
                 &service_name,
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?;
             for command_rec in command_recs {
                 let recs = sqlx::query!(
@@ -250,7 +235,7 @@ impl RouteCollection {
                     &service_name,
                     command_rec.object_type.as_ref().unwrap()
                 )
-                .fetch_all(&mut pool)
+                .fetch_all(pool)
                 .await?;
                 let mut p = HashMap::<String, String>::new();
                 for rec in recs {
@@ -270,7 +255,7 @@ impl RouteCollection {
                 r#"SELECT object_type, description FROM webapi.v_service_event WHERE service_name = $1"#,
                 &service_name
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?;
             for event_rec in event_recs {
                 events.push(route::ServiceEvent {
@@ -284,7 +269,7 @@ impl RouteCollection {
                 r#"SELECT object_type FROM webapi.v_service_subscription WHERE service_name = $1"#,
                 &service_name
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?;
             for subscription_rec in subscription_recs {
                 let recs = sqlx::query!(
@@ -293,7 +278,7 @@ impl RouteCollection {
                     &service_name,
                     subscription_rec.object_type.as_ref().unwrap()
                 )
-                .fetch_all(&mut pool)
+                .fetch_all(pool)
                 .await?;
                 let mut p = HashMap::<String, String>::new();
                 for rec in recs {
@@ -310,7 +295,7 @@ impl RouteCollection {
                     FROM webapi.v_service_path WHERE service_name = $1"#,
                 &service_name
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?;
             let mut p = HashMap::<String, route::ServicePath>::new();
             for rec in recs {
@@ -620,7 +605,7 @@ impl RouteCollection {
         Ok((errors::ErrorCode::ReplyOk, Some(ids)))
     }
 
-    pub async fn remove(&self, ids: Vec<String>) -> connectors::Result<errors::ErrorCode> {
+    pub async fn remove(&self, services: Vec<String>) -> connectors::Result<errors::ErrorCode> {
         #[cfg(feature = "postgres")]
         let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
@@ -629,7 +614,7 @@ impl RouteCollection {
         match sqlx::query(&self.exp_helper.get_delete_str_exp(
             "webapi.service_subscription_path",
             "service_name",
-            &ids,
+            &services,
         ))
         .execute(&mut tx)
         .await
@@ -638,7 +623,7 @@ impl RouteCollection {
                 match sqlx::query(&self.exp_helper.get_delete_str_exp(
                     "webapi.service_subscription",
                     "service_name",
-                    &ids,
+                    &services,
                 ))
                 .execute(&mut tx)
                 .await
@@ -647,7 +632,7 @@ impl RouteCollection {
                         match sqlx::query(&self.exp_helper.get_delete_str_exp(
                             "webapi.service_event",
                             "service_name",
-                            &ids,
+                            &services,
                         ))
                         .execute(&mut tx)
                         .await
@@ -656,7 +641,7 @@ impl RouteCollection {
                                 match sqlx::query(&self.exp_helper.get_delete_str_exp(
                                     "webapi.service_command_path",
                                     "service_name",
-                                    &ids,
+                                    &services,
                                 ))
                                 .execute(&mut tx)
                                 .await
@@ -665,7 +650,7 @@ impl RouteCollection {
                                         match sqlx::query(&self.exp_helper.get_delete_str_exp(
                                             "webapi.service_command",
                                             "service_name",
-                                            &ids,
+                                            &services,
                                         ))
                                         .execute(&mut tx)
                                         .await
@@ -675,7 +660,7 @@ impl RouteCollection {
                                                     &self.exp_helper.get_delete_str_exp(
                                                         "webapi.service_path",
                                                         "service_name",
-                                                        &ids,
+                                                        &services,
                                                     ),
                                                 )
                                                 .execute(&mut tx)
@@ -686,14 +671,14 @@ impl RouteCollection {
                                                             &self.exp_helper.get_delete_str_exp(
                                                                 "webapi.service",
                                                                 "name",
-                                                                &ids,
+                                                                &services,
                                                             ),
                                                         )
                                                         .execute(&mut tx)
                                                         .await
                                                         {
                                                             Ok(ret) => {
-                                                                if ids.len()
+                                                                if services.len()
                                                                     == usize::try_from(ret).unwrap()
                                                                 {
                                                                     match tx.commit().await {

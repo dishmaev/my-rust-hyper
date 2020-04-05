@@ -3,7 +3,6 @@ use super::super::{connectors, entities::executor, errors};
 use sqlx::postgres::{PgPool, PgQueryAs};
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
-use sqlx::{Cursor, Executor, Row};
 use std::sync::Arc;
 
 pub struct SendedAsyncCommandCollection {
@@ -27,9 +26,9 @@ impl SendedAsyncCommandCollection {
         ids: Option<Vec<String>>,
     ) -> connectors::Result<Vec<executor::SendedAsyncCommand>> {
         #[cfg(feature = "postgres")]
-        let mut pool: &PgPool = &self.data_provider.pool;
+        let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
-        let mut pool: &MySqlPool = &self.data_provider.pool;
+        let pool: &MySqlPool = &self.data_provider.pool;
 
         if ids.is_none() {
             Ok(sqlx::query_as!(
@@ -37,7 +36,7 @@ impl SendedAsyncCommandCollection {
                 r#"SELECT id,object_type,proto,"state_to",created_at 
                     FROM webapi.v_sended_async_command"#
             )
-            .fetch_all(&mut pool)
+            .fetch_all(pool)
             .await?)
         } else {
             let query = self.exp_helper
@@ -45,7 +44,7 @@ impl SendedAsyncCommandCollection {
             let items: Vec<executor::SendedAsyncCommand> = sqlx::query_as(
                 &query
             )
-            .fetch_all(&mut pool).await?;
+            .fetch_all(pool).await?;
 
             // let query = self.exp_helper
             // .get_select_str_exp("webapi.v_sended_async_command", "id", &ids.unwrap());
