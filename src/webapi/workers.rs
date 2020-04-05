@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 #[derive(Debug)]
 pub enum SignalCode {
     Exit = 0,
+    JobNo1 = 1
 }
 
 pub async fn event_publisher_worker(
@@ -22,7 +23,7 @@ pub async fn event_publisher_worker(
                     SignalCode::Exit => {
                         return Ok({});
                     }
-                    // _ => {}
+                    _ => {}
                 };
             },
             None => {
@@ -51,7 +52,7 @@ pub async fn command_executor_worker(
                     SignalCode::Exit => {
                         return Ok({});
                     }
-                    // _ => {}
+                    _ => {}
                 };
             },
             None => {

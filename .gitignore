@@ -6,5 +6,5 @@ Cargo.lock
 appsettings.json
 appsettings.dev.json
 test.txt
-todo.txt
+todo*.txt
 

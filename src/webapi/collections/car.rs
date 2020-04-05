@@ -1,9 +1,9 @@
 use super::super::{connectors, entities::car, errors};
+#[cfg(feature = "postgres")]
+use sqlx::postgres::{PgPool, PgQueryAs};
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
-#[cfg(feature = "postgres")]
-use sqlx::PgPool;
-use sqlx::Row;
+use sqlx::{Cursor, Executor, Row};
 use std::convert::TryFrom;
 use std::sync::Arc;
 
@@ -35,20 +35,12 @@ impl CarCollection {
                     .await?,
             )
         } else {
-            let recs = sqlx::query(
-                &self
-                    .exp_helper
-                    .get_select_int_exp("webapi.car", "id", &ids.unwrap()),
+            let query = self.exp_helper
+            .get_select_int_exp("webapi.car", "id", &ids.unwrap());
+            let items: Vec<car::Car> = sqlx::query_as(
+                &query
             )
-            .fetch_all(&mut pool)
-            .await?;
-            let mut items = Vec::<car::Car>::new();
-            for rec in recs {
-                items.push(car::Car {
-                    id: rec.get(0),
-                    car_name: rec.get(1),
-                })
-            }
+            .fetch_all(&mut pool).await?;
             Ok(items)
         }
     }
@@ -170,7 +162,7 @@ impl CarCollection {
             Ok(errors::ErrorCode::NotFoundError)
         }
     }
-    
+
     pub async fn remove(&self, ids: Vec<i32>) -> connectors::Result<errors::ErrorCode> {
         #[cfg(feature = "postgres")]
         let pool: &PgPool = &self.data_provider.pool;
@@ -184,9 +176,7 @@ impl CarCollection {
             Ok(ret) => {
                 if ids.len() == usize::try_from(ret).unwrap() {
                     match tx.commit().await {
-                        Ok(_) => {
-                            Ok(errors::ErrorCode::ReplyOk)
-                        }
+                        Ok(_) => Ok(errors::ErrorCode::ReplyOk),
                         Err(e) => {
                             error!("remove_cars db commit: {}", e);
                             return Ok(errors::ErrorCode::DatabaseError);

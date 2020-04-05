@@ -2,8 +2,7 @@ use super::super::{connectors, entities::usr};
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
 #[cfg(feature = "postgres")]
-use sqlx::PgPool;
-use sqlx::Row;
+use sqlx::postgres::{PgPool, PgQueryAs};
 use std::sync::Arc;
 
 pub struct UsrCollection {
@@ -35,21 +34,12 @@ impl UsrCollection {
             .fetch_all(&mut pool)
             .await?)
         } else {
-            let recs = sqlx::query(&self.exp_helper.get_select_int_exp(
-                "webapi.usr",
-                "id",
-                &ids.unwrap(),
-            ))
-            .fetch_all(&mut pool)
-            .await?;
-            let mut items = Vec::<usr::Usr>::new();
-            for rec in recs {
-                items.push(usr::Usr {
-                    id: rec.get(0),
-                    usr_name: rec.get(1),
-                    usr_password: rec.get(2),
-                })
-            }
+            let query = self.exp_helper
+            .get_select_int_exp("webapi.usr", "id", &ids.unwrap());
+            let items: Vec<usr::Usr> = sqlx::query_as(
+                &query
+            )
+            .fetch_all(&mut pool).await?;
             Ok(items)
         }
     }

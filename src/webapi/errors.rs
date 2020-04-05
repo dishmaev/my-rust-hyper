@@ -7,6 +7,7 @@ use std::fmt;
 pub enum ErrorCode {
     ReplyOk,
     FutureOk, //async command call result, use only with http proto
+    TimeoutExpiredError,
     TooManyRequestsError, //if async queue or reply queue full, http proto return HTTP-status 429
     DatabaseError,
     #[cfg(not(test))]
@@ -25,6 +26,46 @@ impl fmt::Display for ChannelError {
 impl error::Error for ChannelError {
     fn description(&self) -> &str {
         "channel error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SupportedtProtoNotFoundError;
+
+impl fmt::Display for SupportedtProtoNotFoundError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "supported proto not found error")
+    }
+}
+
+impl error::Error for SupportedtProtoNotFoundError {
+    fn description(&self) -> &str {
+        "supported proto not found error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ProtoProviderError;
+
+impl fmt::Display for ProtoProviderError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "proto provider error")
+    }
+}
+
+impl error::Error for ProtoProviderError {
+    fn description(&self) -> &str {
+        "proto provider error"
     }
 
     fn cause(&self) -> Option<&(dyn error::Error)> {
@@ -154,17 +195,17 @@ impl error::Error for BadReplyCommandError {
 }
 
 #[derive(Debug, Clone)]
-pub struct CallCommandError;
+pub struct GeRemoteRouterError;
 
-impl fmt::Display for CallCommandError {
+impl fmt::Display for GeRemoteRouterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "call command error")
+        write!(f, "get from remote router error")
     }
 }
 
-impl error::Error for CallCommandError {
+impl error::Error for GeRemoteRouterError {
     fn description(&self) -> &str {
-        "call command error"
+        "get from remote router error"
     }
 
     fn cause(&self) -> Option<&(dyn error::Error)> {
@@ -194,26 +235,6 @@ impl error::Error for UnknownEventError {
 }
 
 #[derive(Debug, Clone)]
-pub struct SendEventError;
-
-impl fmt::Display for SendEventError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "send event error")
-    }
-}
-
-impl error::Error for SendEventError {
-    fn description(&self) -> &str {
-        "send event error"
-    }
-
-    fn cause(&self) -> Option<&(dyn error::Error)> {
-        // Generic error, underlying cause isn't tracked.
-        None
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct UnsetRequiredValueError;
 
 impl fmt::Display for UnsetRequiredValueError {
@@ -225,6 +246,26 @@ impl fmt::Display for UnsetRequiredValueError {
 impl error::Error for UnsetRequiredValueError {
     fn description(&self) -> &str {
         "required value not set"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TooManyRequestsError;
+
+impl fmt::Display for TooManyRequestsError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "too many request error")
+    }
+}
+
+impl error::Error for TooManyRequestsError {
+    fn description(&self) -> &str {
+        "too many request error"
     }
 
     fn cause(&self) -> Option<&(dyn error::Error)> {

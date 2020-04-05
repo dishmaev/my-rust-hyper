@@ -1,5 +1,5 @@
-use super::{access, connectors, errors, router, traits, workers};
-use hyper::{Body, Client, Method, Request, StatusCode};
+use super::{access, connectors, errors, providers, router, traits, workers};
+use hyper::Body;
 use serde::ser;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -7,9 +7,8 @@ use tokio::sync::mpsc;
 pub struct EventPublisher {
     ac: Arc<access::AccessChecker>,
     rt: Arc<router::Router>,
+    hp: providers::HttpProvider,
     cs: mpsc::Sender<workers::SignalCode>,
-    hep: HttpEventProducer,
-    mep: MqEventProducer,
 }
 
 impl EventPublisher {
@@ -21,9 +20,8 @@ impl EventPublisher {
         Ok(EventPublisher {
             ac: ac,
             rt: rt,
+            hp: providers::HttpProvider::new().await?,
             cs: cs,
-            hep: HttpEventProducer::new().await?,
-            mep: MqEventProducer::new().await?,
         })
     }
 
@@ -55,73 +53,36 @@ impl EventPublisher {
                     let token = self.ac.get_client_basic_authorization_token(
                         item.service_name.unwrap_or_default(),
                     )?;
-                    match self.hep
-                        .send(
+                    match self
+                        .hp
+                        .execute(
                             item.path.get(connectors::PROTO_HTTP).unwrap(),
                             T::get_type_name(),
                             correlation_id,
                             token,
                             Body::from(serde_json::to_string(&items).unwrap()),
                         )
-                        .await{
-                            Ok(_) => {},
-                            Err(e) => {
-                                warn!("correlation id {} object type {} send error {}", correlation_id, T::get_type_name(), e);
-                            }
+                        .await
+                    {
+                        Ok(_) => {}
+                        Err(e) => {
+                            warn!(
+                                "correlation id {} object type {} send error {}",
+                                correlation_id,
+                                T::get_type_name(),
+                                e
+                            );
                         }
+                    }
                 } else {
+                    warn!(
+                        "correlation id {} object type {} supported proto not found error",
+                        correlation_id,
+                        T::get_type_name()
+                    );
                 }
             }
         }
-        Ok({})
-    }
-}
-
-pub struct HttpEventProducer {}
-
-impl HttpEventProducer {
-    pub async fn new() -> connectors::Result<HttpEventProducer> {
-        Ok(HttpEventProducer {})
-    }
-
-    pub async fn send(
-        &self,
-        to: &str,
-        object_type: &str,
-        correlation_id: &str,
-        bat: String,
-        body: Body,
-    ) -> connectors::Result<()> {
-        let req = Request::builder()
-            .method(Method::POST)
-            .uri(format!("{}?ObjectType={}&CorrelationId={}", to, object_type, correlation_id))
-            .header("Authorization", bat)
-            .body(body)
-            .expect("request builder");
-        let client = Client::new();
-        let resp = client.request(req).await?;
-        debug!(
-            "correlation id {} http response code {}",
-            correlation_id,
-            resp.status(),
-        );
-        if resp.status() == StatusCode::OK {
-            Ok({})
-        }
-        else{
-            Err(errors::SendEventError.into())
-        }
-    }
-}
-
-pub struct MqEventProducer;
-
-impl MqEventProducer {
-    pub async fn new() -> connectors::Result<MqEventProducer> {
-        Ok(MqEventProducer {})
-    }
-
-    pub async fn send() -> connectors::Result<()> {
         Ok({})
     }
 }

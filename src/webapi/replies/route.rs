@@ -33,7 +33,7 @@ pub struct GetServiceCommandReply {
     pub url: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub items: Option<Vec<route::Command>>,
+    pub items: Option<Vec<route::ServiceCommand>>,
 }
 
 impl traits::ObjectType for GetServiceCommandReply {
@@ -53,7 +53,7 @@ pub struct GetServiceEventReply {
     pub url: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub items: Option<Vec<route::Event>>,
+    pub items: Option<Vec<route::ServiceEvent>>,
 }
 
 impl traits::ObjectType for GetServiceEventReply {
@@ -73,7 +73,7 @@ pub struct GetServiceSubscriptionReply {
     pub url: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub items: Option<Vec<route::Subscription>>,
+    pub items: Option<Vec<route::ServiceSubscription>>,
 }
 
 impl traits::ObjectType for GetServiceSubscriptionReply {

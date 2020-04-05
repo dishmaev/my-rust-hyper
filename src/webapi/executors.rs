@@ -1,6 +1,6 @@
-use super::{access, connectors, errors, router, traits, workers};
+use super::{access, connectors, errors, providers, router, traits, workers};
 use bytes::buf::BufExt;
-use hyper::{Body, Client, Request, Response, Method, StatusCode};
+use hyper::Body;
 use serde::{de, ser};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -9,9 +9,8 @@ use uuid::Uuid;
 pub struct CommandExecutor {
     ac: Arc<access::AccessChecker>,
     rt: Arc<router::Router>,
+    hp: providers::HttpProvider,
     cs: mpsc::Sender<workers::SignalCode>,
-    hcp: HttpCommandProducer,
-    mcp: MqCommandProducer,
 }
 
 impl CommandExecutor {
@@ -23,9 +22,8 @@ impl CommandExecutor {
         Ok(CommandExecutor {
             ac: ac,
             rt: rt,
+            hp: providers::HttpProvider::new().await?,
             cs: cs,
-            hcp: HttpCommandProducer::new().await?,
-            mcp: MqCommandProducer::new().await?,
         })
     }
 
@@ -54,8 +52,8 @@ impl CommandExecutor {
                 .ac
                 .get_client_basic_authorization_token(c.service_name.unwrap_or_default())?;
             let response = self
-                .hcp
-                .call(
+                .hp
+                .execute(
                     &c.path.get(connectors::PROTO_HTTP).unwrap(),
                     T::get_type_name(),
                     &correlation_id,
@@ -71,57 +69,7 @@ impl CommandExecutor {
                 Err(errors::BadReplyCommandError.into())
             }
         } else {
-            let s = "{
-            \"errorCode\": 0
-        }";
-            let r: R = serde_json::from_str(s).unwrap();
-            Ok(r)
+            Err(errors::SupportedtProtoNotFoundError.into())
         }
-    }
-}
-
-pub struct HttpCommandProducer {}
-
-impl HttpCommandProducer {
-    pub async fn new() -> connectors::Result<HttpCommandProducer> {
-        Ok(HttpCommandProducer {})
-    }
-
-    pub async fn call(
-        &self,
-        to: &str,
-        object_type: &str,
-        correlation_id: &str,
-        bat: String,
-        body: Body,
-    ) -> connectors::Result<Body> {
-        let req = Request::builder()
-            .method(Method::POST)
-            .uri(format!("{}?ObjectType={}&CorrelationId={}", to, object_type, correlation_id))
-            .header("Authorization", bat)
-            .body(body)
-            .expect("request builder");
-        let client = Client::new();
-        let resp = client.request(req).await?;
-        debug!(
-            "correlation id {} http response code {}",
-            correlation_id,
-            resp.status(),
-        );
-        let (parts, body) = resp.into_parts();
-        if parts.status == StatusCode::OK {
-            Ok(body)
-        }
-        else{
-            Err(errors::CallCommandError.into())
-        }
-    }
-}
-
-pub struct MqCommandProducer;
-
-impl MqCommandProducer {
-    pub async fn new() -> connectors::Result<MqCommandProducer> {
-        Ok(MqCommandProducer {})
     }
 }

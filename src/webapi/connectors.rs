@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 pub const PROTO_HTTP: &str = "http";
-pub const PROTO_MQ: &str = "mq";
+// pub const PROTO_MQ: &str = "mq";
 
 #[cfg(not(test))]
 pub struct ExpHelper;

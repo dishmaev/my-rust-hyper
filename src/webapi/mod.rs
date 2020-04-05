@@ -13,6 +13,7 @@ pub mod handlers;
 #[cfg(not(test))]
 pub mod collections;
 
+pub mod providers;
 pub mod connectors;
 pub mod router;
 pub mod publishers;

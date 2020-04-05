@@ -3,6 +3,8 @@ extern crate log;
 #[macro_use]
 extern crate strum_macros;
 
+extern crate chrono;
+
 mod webapi;
 
 use dotenv::dotenv;
@@ -32,7 +34,9 @@ async fn main() {
     const DEFAULT_PORT: u16 = 3456;
     const ENV_PORT: &str = "PORT";
 
+    #[cfg(feature = "postgres")]
     const DB_PG: &str = "pg";
+    #[cfg(feature = "mysql")]
     const DB_MYSQL: &str = "mysql";
 
     let log_setting_file: String =
@@ -84,8 +88,12 @@ async fn main() {
     .await
     .expect("error while access checker initialize");
 
+    let data_connector_arc = Arc::new(data_connector);
+    let access_checker_arc = Arc::new(access_checker);
+
     let router = router::Router::new(
-        &data_connector,
+        data_connector_arc.clone(),
+        access_checker_arc.clone(),
         app_settings.router,
         app_settings.path,
         app_settings.service,
@@ -106,8 +114,6 @@ async fn main() {
         command_executor_control_sender.clone(),
     ];
 
-    let access_checker_arc = Arc::new(access_checker);
-
     let command_executor = executors::CommandExecutor::new(
         access_checker_arc.clone(),
         router_arc.clone(),
@@ -123,12 +129,10 @@ async fn main() {
     .await
     .expect("error while event publisher initialize");
 
-    let data_connector_arc = Arc::new(data_connector);
     let command_executor_arc = Arc::new(command_executor);
     let event_publisher_arc = Arc::new(event_publisher);
 
     let local_rt_arc = router_arc.clone();
-    let local_dc_arc = data_connector_arc.clone();
 
     info!("starting up");
     debug!("start hyper server");
@@ -196,7 +200,7 @@ async fn main() {
     } else {
         debug!("stop hyper server with result: ok");
         local_rt_arc
-            .shutdown(local_dc_arc)
+            .shutdown()
             .await
             .expect("error while router shutdown");
     }
