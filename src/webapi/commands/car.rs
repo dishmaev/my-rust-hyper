@@ -1,6 +1,7 @@
 use super::super::{entities::car, traits};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+// use std::collections::HashMap;
 
 #[derive(Deserialize, Serialize, Clone, JsonSchema)]
 pub struct GetCar {
@@ -14,6 +15,12 @@ impl traits::ObjectType for GetCar {
     }
 }
 
+// impl traits::CommandState for GetCar {
+//     fn get_states() -> &'static HashMap<&'static str, &'static str> {
+//         [("one", "one"), ("two", "two")]
+//     }
+// }
+
 #[derive(Deserialize, Serialize, Clone, JsonSchema)]
 pub struct AddCar {
     pub items: Vec<car::Car>,
@@ -26,13 +33,13 @@ impl traits::ObjectType for AddCar {
 }
 
 #[derive(Deserialize, Serialize, Clone, JsonSchema)]
-pub struct ModifyCar {
+pub struct ChangeCar {
     pub items: Vec<car::Car>,
 }
 
-impl traits::ObjectType for ModifyCar {
+impl traits::ObjectType for ChangeCar {
     fn get_type_name() -> &'static str {
-        "ModifyCar"
+        "ChangeCar"
     }
 }
 

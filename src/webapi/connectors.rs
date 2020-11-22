@@ -2,19 +2,12 @@
 use super::collections;
 #[cfg(test)]
 use super::tests::fakes;
-use super::{entities, settings, errors};
-#[cfg(all(not(test), feature = "mysql"))]
-use sqlx::MySqlPool;
-#[cfg(all(not(test), feature = "postgres"))]
-use sqlx::PgPool;
+use super::{entities, settings};
 use std::collections::HashMap;
 #[cfg(not(test))]
 use std::sync::Arc;
 
 pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
-
-pub const PROTO_HTTP: &str = "http";
-// pub const PROTO_MQ: &str = "mq";
 
 #[cfg(not(test))]
 pub struct ExpHelper;
@@ -98,6 +91,14 @@ pub struct DataConnector {
     pub route: collections::route::RouteCollection,
     #[cfg(test)]
     pub route: fakes::route::RouteCollection,
+    #[cfg(not(test))]
+    pub sended_async_command: collections::executor::SendedAsyncCommandCollection,
+    #[cfg(test)]
+    pub sended_async_command: fakes::executor::SendedAsyncCommandCollection,
+    #[cfg(not(test))]
+    pub received_async_command: collections::executor::ReceivedAsyncCommandCollection,
+    #[cfg(test)]
+    pub received_async_command: fakes::executor::ReceivedAsyncCommandCollection,
 }
 
 impl DataConnector {
@@ -108,15 +109,15 @@ impl DataConnector {
         #[cfg(not(test))]
         let _exp_helper: &'static ExpHelper = &ExpHelper::new();
         #[cfg(all(not(test), feature = "postgres"))]
-        let dp = SqlDbProvider::new(&_db.connection_string).await?;
+        let dp = super::providers::SqlDbProvider::new(&_db.connection_string).await?;
         #[cfg(all(not(test), feature = "mysql"))]
-        let dp = SqlDbProvider::new(&_db.connection_string).await?;
+        let dp = super::providers::SqlDbProvider::new(&_db.connection_string).await?;
         let mut error = HashMap::<String, String>::new();
         if _error.is_some() {
             error.extend(_error.unwrap());
         }
         #[cfg(not(test))]
-        error.extend(DataConnector::errors_as_hashmap(dp.get_errors().await?));
+        error.extend(DataConnector::_errors_as_hashmap(dp.get_errors().await?));
         #[cfg(not(test))]
         let _dp_arc = Arc::new(dp);
         Ok(DataConnector {
@@ -133,50 +134,22 @@ impl DataConnector {
             route: collections::route::RouteCollection::new(_dp_arc.clone(), &_exp_helper),
             #[cfg(test)]
             route: fakes::route::RouteCollection::new(),
+            #[cfg(not(test))]
+            sended_async_command: collections::executor::SendedAsyncCommandCollection::new(_dp_arc.clone(), &_exp_helper),
+            #[cfg(test)]
+            sended_async_command: fakes::executor::SendedAsyncCommandCollection::new(),
+            #[cfg(not(test))]
+            received_async_command: collections::executor::ReceivedAsyncCommandCollection::new(_dp_arc.clone(), &_exp_helper),
+            #[cfg(test)]
+            received_async_command: fakes::executor::ReceivedAsyncCommandCollection::new(),
         })
     }
 
-    #[cfg(not(test))]
-    fn errors_as_hashmap(items: Vec<entities::error::Error>) -> HashMap<String, String> {
+    fn _errors_as_hashmap(items: Vec<entities::error::Error>) -> HashMap<String, String> {
         let mut error = HashMap::<String, String>::new();
         for item in items {
             error.insert(item.error_code, item.error_name);
         }
         error
-    }
-}
-
-#[cfg(not(test))]
-pub struct SqlDbProvider {
-    #[cfg(feature = "postgres")]
-    pub pool: Arc<PgPool>,
-    #[cfg(feature = "mysql")]
-    pub pool: Arc<MySqlPool>,
-}
-
-#[cfg(not(test))]
-impl SqlDbProvider {
-    pub async fn new(connection_string: &String) -> Result<SqlDbProvider> {
-        debug!("connection string {}", connection_string);
-        #[cfg(feature = "postgres")]
-        let pool = PgPool::new(&connection_string).await.unwrap();
-        #[cfg(feature = "mysql")]
-        let pool = MySqlPool::new(&connection_string).await.unwrap();
-        Ok(SqlDbProvider {
-            pool: Arc::new(pool),
-        })
-    }
-
-    pub async fn get_errors(&self) -> Result<Vec<entities::error::Error>> {
-        Ok(
-            vec![entities::error::Error{
-                error_code: errors::ErrorCode::DatabaseError.to_string(),
-                error_name: "Database error".to_string()
-            },
-            entities::error::Error{
-                error_code: errors::ErrorCode::NotFoundError.to_string(),
-                error_name: "Some items with specified id is not found".to_string()
-            }]
-        )
     }
 }

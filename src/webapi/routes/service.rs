@@ -1,5 +1,6 @@
 use super::super::{
-    access, commands, connectors, entities::*, events, executors, handlers, publishers, router,
+    access, commands, connectors, entities::*, errors, events, executors, handlers, publishers,
+    router,
 };
 use super::{index, path};
 use bytes::buf::BufExt;
@@ -8,6 +9,27 @@ use serde::ser;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+// pub type Handler = dyn FnOnce(
+//     Body,
+//     HashMap<String, String>,
+// ) -> Box<dyn Future<Output = (Body, HashMap<String, String>)>>;
+
+pub type Handler = fn(Body, HashMap<String, String>) -> (Body, HashMap<String, String>);
+
+// pub async fn async_command_handler(
+//     body: Body,
+//     param: HashMap<String, String>,
+// ) -> (Body, HashMap<String, String>) {
+//     (Body::empty(), HashMap::<String, String>::new())
+// }
+
+// pub async fn event_handler(
+//     body: Body,
+//     param: HashMap<String, String>,
+// ) -> (Body, HashMap<String, String>) {
+//     (Body::empty(), HashMap::<String, String>::new())
+// }
+
 pub async fn service_route(
     req: Request<Body>,
     dc: Arc<connectors::DataConnector>,
@@ -15,9 +37,13 @@ pub async fn service_route(
     ce: Arc<executors::CommandExecutor>,
     ep: Arc<publishers::EventPublisher>,
     rt: Arc<router::Router>,
+    hr: Arc<HashMap<&str, Handler>>,
 ) -> Result<Response<Body>> {
+    if hr.contains_key("s1") {
+        let f = hr.get("s1").unwrap();
+        f(Body::empty(), HashMap::<String, String>::new());
+    }
     let (parts, body) = req.into_parts();
-    let reader = hyper::body::aggregate(body).await?.reader();
     if parts.method == Method::POST {
         let mut is_authorized = false;
         if parts.headers.get("Authorization").is_some() {
@@ -50,15 +76,21 @@ pub async fn service_route(
             return Ok(resp_with_code(StatusCode::BAD_REQUEST));
         }
         let correlation_id = params.get("correlation_id").unwrap();
-        let reply_to = if params.contains_key("reply_to") {
-            Some(params.get("reply_to").unwrap())
+        let _exec_mode = if params.contains_key("exec_mode") {
+            params.get("exec_mode").unwrap().to_string()
+        } else {
+            executors::ExecMode::Any.to_string()
+        };
+        let _service_name = if params.contains_key("service_name") {
+            Some(params.get("service_name").unwrap())
         } else {
             None
         };
+        let reader = hyper::body::aggregate(body).await?.reader();
         Ok(match parts.uri.path() {
             path::USR_SIGHN_IN => resp(handlers::usr::signin(&dc).await),
             path::USR_SIGHN_UP => resp(handlers::usr::signup(&dc).await),
-            path::ROUTE_GET => {
+            path::ROUTER_ROUTE_GET => {
                 let cmd: Option<commands::route::GetRoute> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if cmd.is_some() {
@@ -68,7 +100,7 @@ pub async fn service_route(
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_COMMAND_GET => {
+            path::ROUTER_COMMAND_GET => {
                 let cmd: Option<commands::route::GetServiceCommand> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if cmd.is_some() {
@@ -78,7 +110,7 @@ pub async fn service_route(
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_EVENT_GET => {
+            path::ROUTER_EVENT_GET => {
                 let cmd: Option<commands::route::GetServiceEvent> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if cmd.is_some() {
@@ -88,7 +120,7 @@ pub async fn service_route(
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_SUBSCIBTION_GET => {
+            path::ROUTER_SUBSCIBTION_GET => {
                 let cmd: Option<commands::route::GetServiceSubscription> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if cmd.is_some() {
@@ -98,7 +130,7 @@ pub async fn service_route(
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_SERVICE_GET => {
+            path::ROUTER_SERVICE_GET => {
                 let cmd: Option<commands::route::GetService> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if cmd.is_some() {
@@ -108,7 +140,7 @@ pub async fn service_route(
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_ADD => {
+            path::ROUTER_ROUTE_ADD => {
                 let cmd: Option<commands::route::AddRoute> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if cmd.is_some() {
@@ -128,13 +160,13 @@ pub async fn service_route(
                             }
                         }
                     }
-                    resp_event(res.0)
+                    resp(Ok(res.0))
                 } else {
                     error!("add_routes handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_REMOVE => {
+            path::ROUTER_ROUTE_REMOVE => {
                 let cmd: Option<commands::route::RemoveRoute> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if cmd.is_some() {
@@ -154,13 +186,13 @@ pub async fn service_route(
                             }
                         }
                     }
-                    resp_event(res.0)
+                    resp(Ok(res.0))
                 } else {
                     error!("remove_routes handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::ROUTE_EVENT_ON_SERVICE_UNAVAILABLE => {
+            path::ROUTER_EVENT_ON_SERVICE_UNAVAILABLE => {
                 let events: Option<Vec<events::route::OnServiceUnavailable>> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if events.is_some() {
@@ -183,7 +215,7 @@ pub async fn service_route(
                             }
                         }
                     }
-                    resp_event(res.0)
+                    resp(Ok(res.0))
                 } else {
                     error!("on_service_unavailable handler: bad body");
                     resp_with_code(StatusCode::BAD_REQUEST)
@@ -196,6 +228,23 @@ pub async fn service_route(
                     resp(handlers::route::on_route_update(&dc, &rt, events.unwrap()).await)
                 } else {
                     error!("on_route_update handler: bad body");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
+            path::EVENT_ON_ASYNC_COMMAND_STATE_CHANGE => {
+                let events: Option<Vec<events::executor::OnAsyncCommandStateChange>> =
+                    serde_json::from_reader(reader).unwrap_or(None);
+                if events.is_some() {
+                    resp(
+                        handlers::executor::on_async_command_state_change(
+                            &dc,
+                            &rt,
+                            events.unwrap(),
+                        )
+                        .await,
+                    )
+                } else {
+                    error!("on_async_command_state_change handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
@@ -220,13 +269,13 @@ pub async fn service_route(
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::CAR_MODIFY => {
-                let cmd: Option<commands::car::ModifyCar> =
+            path::CAR_CHANGE => {
+                let cmd: Option<commands::car::ChangeCar> =
                     serde_json::from_reader(reader).unwrap_or(None);
                 if cmd.is_some() {
-                    resp(handlers::car::modify(&dc, &ce, cmd.unwrap()).await)
+                    resp(handlers::car::change(&dc, &ce, cmd.unwrap()).await)
                 } else {
-                    error!("modify_cars handler: bad body");
+                    error!("change_cars handler: bad body");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
@@ -250,6 +299,29 @@ pub async fn service_route(
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
+            path::STATE => {
+                if params.contains_key("async_command_id") {
+                    match ce
+                        .get_received_async_command_state(
+                            params.get("async_command_id").unwrap().as_str(),
+                        )
+                        .await
+                    {
+                        Ok(r) => resp(Ok(r)),
+                        Err(e) => {
+                            error!("state handler: {}", e);
+                            if let Some(_) = e.downcast_ref::<errors::AsyncCommandNotFoundError>() {
+                                return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                            } else {
+                                return Ok(resp_with_code(StatusCode::INTERNAL_SERVER_ERROR));
+                            }
+                        }
+                    }
+                } else {
+                    error!("state handler: bad request");
+                    return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                }
+            }
             path::SCHEMA => {
                 if params.contains_key("object_type") {
                     let ot = params.get("object_type").unwrap().as_str();
@@ -267,21 +339,19 @@ pub async fn service_route(
             path::ERROR => {
                 if params.contains_key("error_code") {
                     let ec = params.get("error_code").unwrap().as_str();
-                    if dc.error.contains_key(ec) {
-                        resp(Ok(error::Error {
-                            error_code: ec.to_string(),
-                            error_name: dc.error.get(ec).unwrap().clone(),
-                        }))
-                    } else {
-                        error!("error handler: bad body");
-                        return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                    match handlers::route::get_error(&dc, ec) {
+                        Ok(r) => resp(Ok(r)),
+                        Err(e) => {
+                            error!("error handler: {}", e);
+                            return Ok(resp_with_code(StatusCode::BAD_REQUEST));
+                        }
                     }
                 } else {
                     error!("error handler: bad request");
                     return Ok(resp_with_code(StatusCode::BAD_REQUEST));
                 }
             }
-            path::HELTH => return Ok(resp_with_code(StatusCode::OK)),
+            path::HELTH => resp(handlers::route::get_helth()),
             _ => resp_with_code(StatusCode::NOT_FOUND),
         })
     } else if parts.method == Method::GET {
@@ -301,25 +371,15 @@ where
     T: ser::Serialize,
 {
     match res {
-        Ok(items) => Response::builder()
+        Ok(r) => Response::builder()
             .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-            .body(Body::from(serde_json::to_string(&items).unwrap()))
+            .body(Body::from(serde_json::to_string(&r).unwrap()))
             .unwrap(),
         Err(e) => {
             error!("handler: {}", e);
             resp_with_code(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
-}
-
-fn resp_event<T>(res: T) -> Response<Body>
-where
-    T: ser::Serialize,
-{
-    Response::builder()
-        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-        .body(Body::from(serde_json::to_string(&res).unwrap()))
-        .unwrap()
 }
 
 fn resp_schema<T>(res: T) -> Response<Body>

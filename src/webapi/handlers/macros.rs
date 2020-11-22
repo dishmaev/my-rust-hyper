@@ -9,6 +9,16 @@ macro_rules! get_ok_reply {
 }
 
 #[macro_export]
+macro_rules! get_async_ok_reply {
+    () => {
+        replies::common::StandardReply {
+            error_code: errors::ErrorCode::AsyncOk,
+            error_name: None,
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! get_ok_reply_events {
     ($events:expr) => {
         (

@@ -1,7 +1,14 @@
-use sqlx::FromRow;
+use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 use std::collections::HashMap;
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone, ToString, JsonSchema)]
+pub enum ServiceState {
+    Alive,
+    Unavailable
+}
 
 #[derive(Deserialize, Serialize, Clone, FromRow, JsonSchema)]
 pub struct Route {
@@ -16,10 +23,15 @@ pub struct Route {
 
 #[derive(Deserialize, Serialize, Clone, FromRow, JsonSchema)]
 pub struct ServicePath {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proto: Option<String>,
     pub helth: String,    //for router monitor
-    pub schema: String,    //for router helper
+    pub schema: String,   //for router helper
     pub reply_to: String, //for create reply_to path
-    pub error: String, //for get error description path
+    pub state: String,    //for get async command state
+    pub error: String,    //for get error description path
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<String>, //for create command call path
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -31,6 +43,13 @@ pub struct Service {
     pub name: String,
     pub description: String,
     pub priority: i32,
+    pub state: String,
+    pub added_at: DateTime<Utc>,
+}
+
+#[derive(Deserialize, Serialize, Clone, FromRow, JsonSchema)]
+pub struct ServiceHelth {
+    pub state: ServiceState,
 }
 
 #[derive(Deserialize, Serialize, Clone, FromRow, JsonSchema)]
@@ -42,6 +61,10 @@ pub struct ServiceCommand {
     pub object_type: String,
     pub description: String,
     pub reply_type: String,
+    pub exec_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<HashMap<String, String>>,
 }
 
@@ -66,6 +89,8 @@ pub struct CommandRoute {
     pub service_name: Option<String>,
     pub object_type: String,
     pub reply_type: String,
+    pub exec_mode: String,
+    pub state: HashMap<String, String>, // state/description
     pub path: HashMap<String, String>, // proto/to
 }
 

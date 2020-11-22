@@ -9,7 +9,8 @@ mod webapi;
 
 use dotenv::dotenv;
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Error, Server};
+use hyper::{Body, Error, Server};
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::net::SocketAddr;
@@ -17,6 +18,21 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use webapi::{access, connectors, executors, publishers, router, routes, settings, workers};
+
+// pub fn sync_command_handler(
+//     body: Body,
+//     param: HashMap<String, String>,
+// ) -> Box<dyn Future<Output = (Body, HashMap<String, String>)>> {
+//     Box::new(async { (Body::empty(), HashMap::<String, String>::new()) })
+// }
+
+pub fn sync_command_handler(
+    body: Body,
+    param: HashMap<String, String>,
+) -> (Body, HashMap<String, String>) {
+    info!("command handler");
+    (Body::empty(), HashMap::<String, String>::new())
+}
 
 #[tokio::main]
 async fn main() {
@@ -115,6 +131,7 @@ async fn main() {
     ];
 
     let command_executor = executors::CommandExecutor::new(
+        data_connector_arc.clone(),
         access_checker_arc.clone(),
         router_arc.clone(),
         command_executor_control_sender.clone(),
@@ -134,6 +151,10 @@ async fn main() {
 
     let local_rt_arc = router_arc.clone();
 
+    let mut hhm = HashMap::<&str, routes::service::Handler>::new();
+    hhm.insert("s1", sync_command_handler);
+    let handler_arc = Arc::new(hhm);
+
     info!("starting up");
     debug!("start hyper server");
 
@@ -143,6 +164,7 @@ async fn main() {
         let ce = command_executor_arc.clone();
         let ep = event_publisher_arc.clone();
         let rt = router_arc.clone();
+        let hr = handler_arc.clone();
 
         async move {
             Ok::<_, Error>(service_fn(move |req| {
@@ -153,6 +175,7 @@ async fn main() {
                     ce.clone(),
                     ep.clone(),
                     rt.clone(),
+                    hr.clone(),
                 )
             }))
         }

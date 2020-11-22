@@ -5,12 +5,12 @@ use std::fmt;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone, ToString, JsonSchema)]
 pub enum ErrorCode {
-    ReplyOk,
-    FutureOk, //async command call result, use only with http proto
-    TimeoutExpiredError,
+    ReplyOk, //command success result
+    AsyncOk, //async command success registered
+    UnsupportedExecModeError, //if not support sync/async call mode
     TooManyRequestsError, //if async queue or reply queue full, http proto return HTTP-status 429
-    DatabaseError,
-    #[cfg(not(test))]
+    TimeoutExpiredError,
+    DatabaseError, //internal error, database level
     NotFoundError,
 }
 
@@ -35,17 +35,17 @@ impl error::Error for ChannelError {
 }
 
 #[derive(Debug, Clone)]
-pub struct SupportedtProtoNotFoundError;
+pub struct UnsupportedProtoError;
 
-impl fmt::Display for SupportedtProtoNotFoundError {
+impl fmt::Display for UnsupportedProtoError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "supported proto not found error")
+        write!(f, "unsupported proto error")
     }
 }
 
-impl error::Error for SupportedtProtoNotFoundError {
+impl error::Error for UnsupportedProtoError {
     fn description(&self) -> &str {
-        "supported proto not found error"
+        "supported proto error"
     }
 
     fn cause(&self) -> Option<&(dyn error::Error)> {
@@ -175,6 +175,26 @@ impl error::Error for UnknownCommandError {
 }
 
 #[derive(Debug, Clone)]
+pub struct UnknownEventError;
+
+impl fmt::Display for UnknownEventError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unknown event error")
+    }
+}
+
+impl error::Error for UnknownEventError {
+    fn description(&self) -> &str {
+        "unknown event error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct BadReplyCommandError;
 
 impl fmt::Display for BadReplyCommandError {
@@ -215,26 +235,6 @@ impl error::Error for GeRemoteRouterError {
 }
 
 #[derive(Debug, Clone)]
-pub struct UnknownEventError;
-
-impl fmt::Display for UnknownEventError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "unknown event error")
-    }
-}
-
-impl error::Error for UnknownEventError {
-    fn description(&self) -> &str {
-        "unknown event error"
-    }
-
-    fn cause(&self) -> Option<&(dyn error::Error)> {
-        // Generic error, underlying cause isn't tracked.
-        None
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct UnsetRequiredValueError;
 
 impl fmt::Display for UnsetRequiredValueError {
@@ -266,6 +266,126 @@ impl fmt::Display for TooManyRequestsError {
 impl error::Error for TooManyRequestsError {
     fn description(&self) -> &str {
         "too many request error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TimeoutExpiredError;
+
+impl fmt::Display for TimeoutExpiredError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "timeout expired error")
+    }
+}
+
+impl error::Error for TimeoutExpiredError {
+    fn description(&self) -> &str {
+        "timeout expired error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct UnknownErrorCodeError;
+
+impl fmt::Display for UnknownErrorCodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unknown error code error")
+    }
+}
+
+impl error::Error for UnknownErrorCodeError {
+    fn description(&self) -> &str {
+        "unknown error code error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AsyncCommandNotFoundError;
+
+impl fmt::Display for AsyncCommandNotFoundError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "async command not found error")
+    }
+}
+
+impl error::Error for AsyncCommandNotFoundError {
+    fn description(&self) -> &str {
+        "async command not found error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DataIntegrityError;
+
+impl fmt::Display for DataIntegrityError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "data integrity error")
+    }
+}
+
+impl error::Error for DataIntegrityError {
+    fn description(&self) -> &str {
+        "data integrity error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct UnsupportedExecModeError;
+
+impl fmt::Display for UnsupportedExecModeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unsupported exec mode error")
+    }
+}
+
+impl error::Error for UnsupportedExecModeError {
+    fn description(&self) -> &str {
+        "unsupported exec mode error"
+    }
+
+    fn cause(&self) -> Option<&(dyn error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct UnknownAsyncCommandStateError;
+
+impl fmt::Display for UnknownAsyncCommandStateError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unknown async command state error")
+    }
+}
+
+impl error::Error for UnknownAsyncCommandStateError {
+    fn description(&self) -> &str {
+        "unknown async command state error"
     }
 
     fn cause(&self) -> Option<&(dyn error::Error)> {

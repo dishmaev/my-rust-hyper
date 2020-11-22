@@ -18,10 +18,10 @@ impl AccessChecker {
 
     pub fn get_client_basic_authorization_token(
         &self,
-        service_name: String,
+        service_name: &String,
     ) -> connectors::Result<String> {
-        if self.cba.contains_key(&service_name) {
-            Ok(self.cba.get(&service_name).unwrap().clone())
+        if self.cba.contains_key(service_name) {
+            Ok(self.cba.get(service_name).unwrap().clone())
         } else if self.cba_common.is_some() {
             Ok(self.cba_common.as_ref().unwrap().clone())
         } else {

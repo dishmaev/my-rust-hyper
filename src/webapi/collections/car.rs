@@ -1,19 +1,20 @@
-use super::super::{connectors, entities::car, errors};
+use super::super::{connectors, entities::car, errors, providers};
 #[cfg(feature = "postgres")]
-use sqlx::postgres::{PgPool, PgQueryAs};
+use sqlx::postgres::PgPool;
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
+use sqlx::Done;
 use std::convert::TryFrom;
 use std::sync::Arc;
 
 pub struct CarCollection {
-    data_provider: Arc<connectors::SqlDbProvider>,
+    data_provider: Arc<providers::SqlDbProvider>,
     exp_helper: &'static connectors::ExpHelper,
 }
 
 impl CarCollection {
     pub fn new(
-        data_provider: Arc<connectors::SqlDbProvider>,
+        data_provider: Arc<providers::SqlDbProvider>,
         helper: &'static connectors::ExpHelper,
     ) -> CarCollection {
         CarCollection {
@@ -29,17 +30,15 @@ impl CarCollection {
         let pool: &MySqlPool = &self.data_provider.pool;
         if ids.is_none() {
             Ok(
-                sqlx::query_as!(car::Car, r#"SELECT id,car_name FROM webapi.car"#)
+                sqlx::query_as!(car::Car, r#"SELECT id as "id?",car_name FROM webapi.car"#)
                     .fetch_all(pool)
                     .await?,
             )
         } else {
-            let query = self.exp_helper
-            .get_select_int_exp("webapi.car", "id", &ids.unwrap());
-            let items: Vec<car::Car> = sqlx::query_as(
-                &query
-            )
-            .fetch_all(pool).await?;
+            let query = self
+                .exp_helper
+                .get_select_int_exp("webapi.car", "id", &ids.unwrap());
+            let items: Vec<car::Car> = sqlx::query_as(&query).fetch_all(pool).await?;
             Ok(items)
         }
     }
@@ -106,7 +105,7 @@ impl CarCollection {
         Ok((errors::ErrorCode::ReplyOk, Some(ids)))
     }
 
-    pub async fn modify(&self, items: Vec<car::Car>) -> connectors::Result<errors::ErrorCode> {
+    pub async fn change(&self, items: Vec<car::Car>) -> connectors::Result<errors::ErrorCode> {
         #[cfg(feature = "postgres")]
         let pool: &PgPool = &self.data_provider.pool;
         #[cfg(feature = "mysql")]
@@ -123,7 +122,7 @@ impl CarCollection {
             .execute(&mut tx)
             .await
             {
-                Ok(ret) => count += ret,
+                Ok(ret) => count += ret.rows_affected(),
                 Err(e) => {
                     error!("update_cars db update: {}", e);
                     tx.rollback().await?;
@@ -173,7 +172,7 @@ impl CarCollection {
             .await
         {
             Ok(ret) => {
-                if ids.len() == usize::try_from(ret).unwrap() {
+                if ids.len() == usize::try_from(ret.rows_affected()).unwrap() {
                     match tx.commit().await {
                         Ok(_) => Ok(errors::ErrorCode::ReplyOk),
                         Err(e) => {

@@ -1,6 +1,7 @@
 use super::{access, connectors, errors, providers, router, traits, workers};
 use hyper::Body;
 use serde::ser;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -49,16 +50,21 @@ impl EventPublisher {
         );
         if let Some(s) = self.rt.get_subscriptions(T::get_type_name()) {
             for item in s {
-                if item.path.contains_key(connectors::PROTO_HTTP) {
+                if item.path.contains_key(&providers::Proto::http.to_string()) {
+                    let mut prop = HashMap::<&str, &str>::new();
+                    prop.insert(
+                        "correlation_id",
+                        correlation_id,
+                    );
+                    prop.insert("object_type", T::get_type_name());
                     let token = self.ac.get_client_basic_authorization_token(
-                        item.service_name.unwrap_or_default(),
+                        item.service_name.as_ref().unwrap(),
                     )?;
                     match self
                         .hp
                         .execute(
-                            item.path.get(connectors::PROTO_HTTP).unwrap(),
-                            T::get_type_name(),
-                            correlation_id,
+                            item.path.get(&providers::Proto::http.to_string()).unwrap(),
+                            prop,
                             token,
                             Body::from(serde_json::to_string(&items).unwrap()),
                         )

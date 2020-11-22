@@ -38,15 +38,15 @@ pub async fn add(
     }
 }
 
-pub async fn modify(
+pub async fn change(
     dc: &connectors::DataConnector,
     ce: &executors::CommandExecutor,
-    cmd: commands::car::ModifyCar,
+    cmd: commands::car::ChangeCar,
 ) -> connectors::Result<replies::common::StandardReply> {
     let _c: replies::common::StandardReply = ce
         .call(commands::car::ReserveCar { services: vec![1] })
         .await?;
-    let result: errors::ErrorCode = dc.car.modify(cmd.items).await?;
+    let result: errors::ErrorCode = dc.car.change(cmd.items).await?;
     if result == errors::ErrorCode::ReplyOk {
         Ok(get_ok_reply!())
     } else {

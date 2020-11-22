@@ -75,5 +75,10 @@ pub fn make_schema() -> HashMap<&'static str, schemars::schema::RootSchema> {
         events::route::OnRouteUpdate::get_type_name(),
         schema_for!(events::route::OnRouteUpdate),
     );
+    hm.insert(
+        events::executor::OnAsyncCommandStateChange::get_type_name(),
+        schema_for!(events::executor::OnAsyncCommandStateChange),
+    );
+
     hm
 }

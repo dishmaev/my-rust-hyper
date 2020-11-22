@@ -1,6 +1,4 @@
-use super::super::{
-    commands, connectors, errors, events, replies, router,
-};
+use super::super::{commands, connectors, entities, errors, events, replies, router};
 
 pub async fn get(
     dc: &connectors::DataConnector,
@@ -98,17 +96,43 @@ pub async fn get_subscription(
     }
 }
 
+pub fn get_helth() -> connectors::Result<entities::route::ServiceHelth> {
+    Ok(entities::route::ServiceHelth {
+        state: entities::route::ServiceState::Alive,
+    })
+}
+
+pub fn get_error(
+    dc: &connectors::DataConnector,
+    error_code: &str,
+) -> connectors::Result<entities::error::Error> {
+    if dc.error.contains_key(error_code) {
+        Ok(entities::error::Error {
+            error_code: error_code.to_string(),
+            error_name: dc.error.get(error_code).unwrap().clone(),
+        })
+    } else {
+        Err(errors::UnknownErrorCodeError.into())
+    }
+}
+
 pub async fn get_service(
     dc: &connectors::DataConnector,
     cmd: commands::route::GetService,
 ) -> connectors::Result<replies::route::GetServiceReply> {
     match dc.route.get_service(cmd.names).await {
-        Ok(r) => Ok(replies::route::GetServiceReply {
-            error_code: errors::ErrorCode::ReplyOk,
-            error_name: None,
-            url: None,
-            items: Some(r),
-        }),
+        Ok(mut items) => {
+            for mut item in &mut items {
+                //todo: remote call helth service
+                item.state = entities::route::ServiceState::Alive.to_string();
+            }
+            Ok(replies::route::GetServiceReply {
+                error_code: errors::ErrorCode::ReplyOk,
+                error_name: None,
+                url: None,
+                items: Some(items),
+            })
+        }
         Err(e) => {
             error!("get_service handler get service collection: {}", e);
             let ec = errors::ErrorCode::DatabaseError;
@@ -152,7 +176,9 @@ pub async fn remove(
     let result: errors::ErrorCode = dc.route.remove(cmd.services.clone()).await?;
     if result == errors::ErrorCode::ReplyOk {
         Ok(get_ok_reply_events!(Some(vec![
-            events::route::OnRouteUpdate { services: cmd.services }
+            events::route::OnRouteUpdate {
+                services: cmd.services
+            }
         ])))
     } else {
         Ok(get_error_reply_events!(&result, dc.error))
@@ -187,11 +213,12 @@ pub async fn on_route_update(
     _items: Vec<events::route::OnRouteUpdate>,
 ) -> connectors::Result<replies::common::StandardReply> {
     if rt.is_local {
+        let p = dc.route.get_service_path(None).await?;
         let c = dc.route.get_command(None).await?;
         let s = dc.route.get_subscription(None).await?;
-        rt.update(c, s).await?;
+        rt.update(p, c, s).await?;
     } else {
-        //get from remote route
+        //todo: get from remote route
     }
     Ok(get_ok_reply!())
 }

@@ -1,11 +1,16 @@
 // use super::connectors;
 // use hyper::Body;
+// use std::collections::HashMap;
 
 pub trait ObjectType {
     fn get_type_name() -> &'static str;
 }
 
-/* not supported yet
+/*pub trait CommandState {
+    fn get_states() -> &'static HashMap<&'static str, &'static str>; // state/description
+}*/
+
+/* async fn not supported yet
 pub trait Provider {
     async fn execute(
         &self,
@@ -15,4 +20,5 @@ pub trait Provider {
         bat: String,
         body: Body,
     ) -> connectors::Result<Body>;
-}*/
+}
+*/

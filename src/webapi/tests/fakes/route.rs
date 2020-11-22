@@ -45,6 +45,13 @@ impl RouteCollection {
         Ok(vec![])
     }
 
+    pub async fn get_service_path(
+        &self,
+        _services: Option<Vec<String>>,
+    ) -> connectors::Result<Vec<route::ServicePath>> {
+        Ok(vec![])
+    }
+
     pub async fn add(
         &self,
         _items: Vec<route::Route>,
