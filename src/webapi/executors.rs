@@ -1,6 +1,6 @@
 use super::{access, connectors, entities, errors, providers, router, traits, workers};
-use bytes::buf::ext::BufExt;
 use hyper::Body;
+use bytes::Buf;
 use serde::{de, ser};
 use std::collections::HashMap;
 //use std::str::FromStr;

@@ -3,7 +3,6 @@ use super::super::{connectors, entities::car, errors, providers};
 use sqlx::postgres::PgPool;
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
-use sqlx::Done;
 use std::convert::TryFrom;
 use std::sync::Arc;
 

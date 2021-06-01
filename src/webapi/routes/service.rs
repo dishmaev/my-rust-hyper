@@ -3,11 +3,15 @@ use super::super::{
     router,
 };
 use super::{index, path};
-use bytes::buf::BufExt;
-use hyper::{error::Result, header, Body, Method, Request, Response, StatusCode};
+use hyper::{header, Body, Method, Request, Response, StatusCode};
+use bytes::Buf;
 use serde::ser;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::convert::From;
+
+type GenericError = Box<dyn std::error::Error + Send + Sync>;
+type Result<T> = std::result::Result<T, GenericError>;
 
 // pub type Handler = dyn FnOnce(
 //     Body,
@@ -86,7 +90,7 @@ pub async fn service_route(
         } else {
             None
         };
-        let reader = hyper::body::aggregate(body).await?.reader();
+        let mut reader = hyper::body::aggregate(body).await?.reader();
         Ok(match parts.uri.path() {
             path::USR_SIGHN_IN => resp(handlers::usr::signin(&dc).await),
             path::USR_SIGHN_UP => resp(handlers::usr::signup(&dc).await),

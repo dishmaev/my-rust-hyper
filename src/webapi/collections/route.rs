@@ -2,7 +2,6 @@ use super::super::{connectors, entities::route, errors, providers};
 use futures::TryStreamExt;
 #[cfg(feature = "postgres")]
 use sqlx::postgres::PgPool;
-use sqlx::Done;
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
 use sqlx::Row;

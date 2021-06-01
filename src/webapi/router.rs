@@ -2,8 +2,8 @@ use super::entities::route;
 use super::{
     access, commands, connectors, entities, errors, providers, replies, schema, traits::ObjectType,
 };
-use bytes::buf::ext::BufExt;
 use hyper::Body;
+use bytes::Buf;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;

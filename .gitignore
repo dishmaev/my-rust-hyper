@@ -7,4 +7,5 @@ appsettings.json
 appsettings.dev.json
 test.txt
 todo*.txt
+doc/*.*
 

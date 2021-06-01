@@ -155,9 +155,6 @@ async fn main() {
     hhm.insert("s1", sync_command_handler);
     let handler_arc = Arc::new(hhm);
 
-    info!("starting up");
-    debug!("start hyper server");
-
     let make_svc = make_service_fn(move |_| {
         let dc = data_connector_arc.clone();
         let ac = access_checker_arc.clone();
@@ -181,6 +178,10 @@ async fn main() {
         }
     });
     let server = Server::bind(&addr).serve(make_svc);
+
+    info!("starting up");
+    debug!("start hyper server {}", &addr);
+
     let cancel_flag = Arc::new(AtomicBool::new(false));
     let event_publisher_cancel_flag = cancel_flag.clone();
     let command_executer_cancel_flag = cancel_flag.clone();
