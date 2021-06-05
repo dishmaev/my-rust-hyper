@@ -12,7 +12,7 @@ pub struct StandardReply {
 
 impl StandardReply {
     pub fn is_ok(&self) -> bool {
-        (self.error_code == errors::ErrorCode::ReplyOk)
+        self.error_code == errors::ErrorCode::ReplyOk
     }
 }
 
@@ -52,7 +52,7 @@ pub struct AddStrIdsReply {
 
 impl AddStrIdsReply {
     pub fn is_ok(&self) -> bool {
-        (self.error_code == errors::ErrorCode::ReplyOk)
+        self.error_code == errors::ErrorCode::ReplyOk
     }
 }
 

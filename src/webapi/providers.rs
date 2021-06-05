@@ -11,8 +11,8 @@ use sqlx::MySqlPool;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone, ToString, JsonSchema)]
 pub enum Proto {
-    http,
-    mq
+    Http,
+    Mq
 }
 
 pub struct HttpProvider;
@@ -66,12 +66,11 @@ impl MqProvider {
 
     pub async fn execute(
         &self,
-        to: &str,
-        object_type: &str,
-        correlation_id: &str,
-        bat: String,
-        body: Body,
+        _to: &str,
+        _prop: HashMap<&str, &str>,
+        _body: Body,
     ) -> connectors::Result<Body> {
+        //todo:
         Ok(Body::empty())
     }
 }
@@ -86,7 +85,7 @@ pub struct SqlDbProvider {
 
 #[cfg(not(test))]
 impl SqlDbProvider {
-    pub async fn new(connection_string: &String) -> connectors::Result<SqlDbProvider> {
+    pub async fn new(connection_string: &str) -> connectors::Result<SqlDbProvider> {
         debug!("connection string {}", connection_string);
         #[cfg(feature = "postgres")]
         let pool = PgPool::connect(&connection_string).await?;

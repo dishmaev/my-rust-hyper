@@ -1,8 +1,8 @@
 #[cfg(not(test))]
 use super::collections;
+use super::entities;
 #[cfg(test)]
 use super::tests::fakes;
-use super::{entities, settings};
 use std::collections::HashMap;
 #[cfg(not(test))]
 use std::sync::Arc;
@@ -104,14 +104,14 @@ pub struct DataConnector {
 impl DataConnector {
     pub async fn new(
         _error: Option<HashMap<String, String>>,
-        _db: &settings::Database
+        _connection_string: &str,
     ) -> Result<DataConnector> {
         #[cfg(not(test))]
         let _exp_helper: &'static ExpHelper = &ExpHelper::new();
         #[cfg(all(not(test), feature = "postgres"))]
-        let dp = super::providers::SqlDbProvider::new(&_db.connection_string).await?;
+        let dp = super::providers::SqlDbProvider::new(_connection_string).await?;
         #[cfg(all(not(test), feature = "mysql"))]
-        let dp = super::providers::SqlDbProvider::new(&_db.connection_string).await?;
+        let dp = super::providers::SqlDbProvider::new(_connection_string).await?;
         let mut error = HashMap::<String, String>::new();
         if _error.is_some() {
             error.extend(_error.unwrap());
@@ -135,11 +135,17 @@ impl DataConnector {
             #[cfg(test)]
             route: fakes::route::RouteCollection::new(),
             #[cfg(not(test))]
-            sended_async_command: collections::executor::SendedAsyncCommandCollection::new(_dp_arc.clone(), &_exp_helper),
+            sended_async_command: collections::executor::SendedAsyncCommandCollection::new(
+                _dp_arc.clone(),
+                &_exp_helper,
+            ),
             #[cfg(test)]
             sended_async_command: fakes::executor::SendedAsyncCommandCollection::new(),
             #[cfg(not(test))]
-            received_async_command: collections::executor::ReceivedAsyncCommandCollection::new(_dp_arc.clone(), &_exp_helper),
+            received_async_command: collections::executor::ReceivedAsyncCommandCollection::new(
+                _dp_arc.clone(),
+                &_exp_helper,
+            ),
             #[cfg(test)]
             received_async_command: fakes::executor::ReceivedAsyncCommandCollection::new(),
         })

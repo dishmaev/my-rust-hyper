@@ -1,17 +1,17 @@
 use super::super::super::{entities::executor, connectors};
 
 pub struct SendedAsyncCommandCollection {
-    items: Vec<executor::SendedAsyncCommand>,
+    _items: Vec<executor::SendedAsyncCommand>,
 }
 
 impl SendedAsyncCommandCollection {
     pub fn new() -> SendedAsyncCommandCollection {
         let items = vec![];
-        SendedAsyncCommandCollection { items: items }
+        SendedAsyncCommandCollection { _items: items }
     }
 
     pub async fn get(&self, _ids: Option<Vec<String>>) -> connectors::Result<Vec<executor::SendedAsyncCommand>> {
-        Ok(self.items.clone())
+        Ok(self._items.clone())
     }
 }
 

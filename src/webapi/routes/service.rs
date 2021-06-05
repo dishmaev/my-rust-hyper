@@ -1,5 +1,5 @@
 use super::super::{
-    access, commands, connectors, entities::*, errors, events, executors, handlers, publishers,
+    access, commands, connectors, errors, events, executors, handlers, publishers,
     router,
 };
 use super::{index, path};
@@ -45,7 +45,7 @@ pub async fn service_route(
 ) -> Result<Response<Body>> {
     if hr.contains_key("s1") {
         let f = hr.get("s1").unwrap();
-        f(Body::empty(), HashMap::<String, String>::new());
+        let _ = f(Body::empty(), HashMap::<String, String>::new());
     }
     let (parts, body) = req.into_parts();
     if parts.method == Method::POST {
@@ -80,17 +80,12 @@ pub async fn service_route(
             return Ok(resp_with_code(StatusCode::BAD_REQUEST));
         }
         let correlation_id = params.get("correlation_id").unwrap();
-        let _exec_mode = if params.contains_key("exec_mode") {
-            params.get("exec_mode").unwrap().to_string()
-        } else {
-            executors::ExecMode::Any.to_string()
-        };
         let _service_name = if params.contains_key("service_name") {
             Some(params.get("service_name").unwrap())
         } else {
             None
         };
-        let mut reader = hyper::body::aggregate(body).await?.reader();
+        let reader = hyper::body::aggregate(body).await?.reader();
         Ok(match parts.uri.path() {
             path::USR_SIGHN_IN => resp(handlers::usr::signin(&dc).await),
             path::USR_SIGHN_UP => resp(handlers::usr::signup(&dc).await),

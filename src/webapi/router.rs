@@ -10,11 +10,14 @@ use std::sync::RwLock;
 use uuid::Uuid;
 
 pub const ROUTER_SERVICE_NAME: &str = "router";
+pub const ROUTER_HOST_MACRO: &str = "{host}";
+pub const ROUTER_BROKER_MACRO: &str = "{broker}";
 
 pub struct Router {
     data_connector: Option<Arc<connectors::DataConnector>>,
     access_checker: Option<Arc<access::AccessChecker>>,
     http_provider: providers::HttpProvider,
+    mq_provider: providers::MqProvider,
     remote_router: Option<HashMap<String, String>>,
     service_path: RwLock<HashMap<String, HashMap<String, route::ServicePath>>>,
     command: RwLock<HashMap<String, entities::route::CommandRoute>>,
@@ -130,13 +133,13 @@ impl Router {
         hm
     }
 
-    pub fn update_host_mask(host: &str, path: &mut route::ServicePath) {
-        path.helth = path.helth.replace("{host}", host);
-        path.schema = path.schema.replace("{host}", host);
-        path.reply_to = path.reply_to.replace("{host}", host);
-        path.error = path.error.replace("{host}", host);
-        path.request = Some(path.request.as_ref().unwrap().replace("{host}", host));
-        path.event = Some(path.event.as_ref().unwrap().replace("{host}", host));
+    pub fn update_host_mask(host: &str, broker: &str, path: &mut route::ServicePath) {
+        path.helth = path.helth.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
+        path.schema = path.schema.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
+        path.reply_to = path.reply_to.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
+        path.error = path.error.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
+        path.request = Some(path.request.as_ref().unwrap().replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker));
+        path.event = Some(path.event.as_ref().unwrap().replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker));
     }
 
     pub async fn new(
@@ -146,6 +149,7 @@ impl Router {
         mut path: HashMap<String, route::ServicePath>,
         mut service: HashMap<String, route::Route>,
         host: &str,
+        broker: &str,
     ) -> connectors::Result<Router> {
         for item in service.iter_mut() {
             item.1.service_name = Some(item.0.to_string());
@@ -153,7 +157,7 @@ impl Router {
         let mut root_command_path = HashMap::<String, String>::new();
         let mut root_subscription_path = HashMap::<String, String>::new();
         for p in path.iter_mut() {
-            Router::update_host_mask(host, p.1);
+            Router::update_host_mask(host, broker, p.1);
             root_command_path.insert(p.0.to_string(), p.1.request.as_ref().unwrap().to_string());
             root_subscription_path.insert(p.0.to_string(), p.1.event.as_ref().unwrap().to_string());
         }
@@ -165,7 +169,7 @@ impl Router {
                 let mut chm = HashMap::<String, String>::new();
                 let mut shm = HashMap::<String, String>::new();
                 for p in item.path.as_mut().unwrap().iter_mut() {
-                    Router::update_host_mask(host, p.1);
+                    Router::update_host_mask(host, broker, p.1);
                     chm.insert(p.0.to_string(), p.1.request.as_ref().unwrap().to_string());
                     shm.insert(p.0.to_string(), p.1.event.as_ref().unwrap().to_string());
                 }
@@ -176,7 +180,7 @@ impl Router {
                 let np = Some(if c.path.is_some() {
                     let mut cp = c.path.as_ref().unwrap().clone();
                     for p in cp.values_mut() {
-                        *p = p.replace("{host}", host);
+                        *p = p.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
                     }
                     cp
                 } else {
@@ -199,7 +203,7 @@ impl Router {
                 let np = Some(if s.path.is_some() {
                     let mut sp = s.path.as_ref().unwrap().clone();
                     for p in sp.values_mut() {
-                        *p = p.replace("{host}", host);
+                        *p = p.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
                     }
                     sp
                 } else {
@@ -215,6 +219,7 @@ impl Router {
         }
         let is_local = remote_router.is_none();
         let hp = providers::HttpProvider::new().await?;
+        let mp = providers::MqProvider::new().await?;
         let mut _service_paths = Vec::<route::ServicePath>::new();
         let mut _commands = Vec::<route::ServiceCommand>::new();
         let mut _subscriptions = Vec::<route::ServiceSubscription>::new();
@@ -230,14 +235,15 @@ impl Router {
             if !remote_router
                 .as_ref()
                 .unwrap()
-                .contains_key(&providers::Proto::http.to_string())
+                .contains_key(&providers::Proto::Http.to_string())
             {
+                //todo: support mq
                 return Err(errors::UnsupportedProtoError.into());
             }
             let r = remote_router
                 .as_ref()
                 .unwrap()
-                .get(&providers::Proto::http.to_string())
+                .get(&providers::Proto::Http.to_string())
                 .unwrap();
             let cid = Uuid::new_v4().to_hyphenated().to_string();
             let mut prop = HashMap::<&str, &str>::new();
@@ -320,6 +326,7 @@ impl Router {
             data_connector: if is_local { Some(dc) } else { None },
             access_checker: if is_local { None } else { Some(ac) },
             http_provider: hp,
+            mq_provider: mp,
             schema: schema::make_schema(),
             remote_router: remote_router,
             service_path: RwLock::new(Router::make_service_path_hash_map(_service_paths)),
@@ -428,7 +435,7 @@ impl Router {
                 .remote_router
                 .as_ref()
                 .unwrap()
-                .get(&providers::Proto::http.to_string())
+                .get(&providers::Proto::Http.to_string())
                 .unwrap();
             let cid = Uuid::new_v4().to_hyphenated().to_string();
             let mut prop = HashMap::<&str, &str>::new();

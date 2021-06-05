@@ -9,7 +9,8 @@ pub struct AppSettings {
     pub max_sync_command_reply_wait_in_seconds: u16,
     pub error: Option<HashMap<String, String>>,
     pub access: Access,
-    pub database: HashMap<String, Database>,
+    pub database: HashMap<String, String>,
+    pub mq_broker: HashMap<String, String>,
     pub router: Option<HashMap<String, String>>,
     pub path: HashMap<String, route::ServicePath>,
     pub service: HashMap<String, route::Route>,
@@ -24,9 +25,4 @@ pub struct Access {
 pub struct Authentication {
     pub server: HashMap<String, String>,
     pub client: Vec<route::ClientAccess>
-}
-
-#[derive(Deserialize)]
-pub struct Database {
-    pub connection_string: String,
 }

@@ -5,9 +5,10 @@ authors = ["dishmaev <idax@rambler.ru>"]
 edition = "2018"
 
 [features]
-default = [ "postgres" ]
+default = [ "postgres", "amqp" ]
 postgres = [ "sqlx/postgres" ]
 mysql = [ "sqlx/mysql" ]
+amqp = [ "dove" ]
 
 [dependencies]
 futures = "0.3"
@@ -24,6 +25,7 @@ schemars = { version = "0", features = ["chrono"] }
 strum = "0"
 strum_macros = "0"
 log4rs = "1"
+dove = { version = "0", optional = true }
 chrono = { version = "0", features = ["serde"] }
 uuid = { version = "0", default-features = false, features = ["v4"] }
 sqlx = { version = "0", default-features = false, features = [ "runtime-tokio-rustls", "macros", "chrono" ] }
