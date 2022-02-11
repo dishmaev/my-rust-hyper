@@ -1,14 +1,13 @@
 use super::super::{
-    access, commands, connectors, errors, events, executors, handlers, publishers,
-    router,
+    access, commands, connectors, errors, events, executors, handlers, publishers, router,
 };
 use super::{index, path};
-use hyper::{header, Body, Method, Request, Response, StatusCode};
 use bytes::Buf;
+use hyper::{header, Body, Method, Request, Response, StatusCode};
 use serde::ser;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::convert::From;
+use std::sync::Arc;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, GenericError>;

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone, ToString, JsonSchema)]
 pub enum ServiceState {
     Alive,
-    Unavailable
+    Unavailable,
 }
 
 #[derive(Deserialize, Serialize, Clone, FromRow, JsonSchema)]
@@ -91,7 +91,7 @@ pub struct CommandRoute {
     pub reply_type: String,
     pub exec_mode: String,
     pub state: HashMap<String, String>, // state/description
-    pub path: HashMap<String, String>, // proto/to
+    pub path: HashMap<String, String>,  // proto/to
 }
 
 #[derive(Clone)]

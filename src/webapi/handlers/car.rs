@@ -5,22 +5,20 @@ pub async fn get(
     cmd: commands::car::GetCar,
 ) -> connectors::Result<replies::car::GetCarReply> {
     match dc.car.get(cmd.ids).await {
-        Ok(r) => {
-            Ok(replies::car::GetCarReply{
-                error_code: errors::ErrorCode::ReplyOk,
-                error_name: None,
-                url: None,
-                items: Some(r)
-            })
-        },
+        Ok(r) => Ok(replies::car::GetCarReply {
+            error_code: errors::ErrorCode::ReplyOk,
+            error_name: None,
+            url: None,
+            items: Some(r),
+        }),
         Err(e) => {
             error!("get_car handler get car collection: {}", e);
             let ec = errors::ErrorCode::DatabaseError;
-            Ok(replies::car::GetCarReply{
+            Ok(replies::car::GetCarReply {
                 error_code: ec.clone(),
                 error_name: Some(dc.error.get(&ec.to_string()).unwrap().clone()),
                 url: None,
-                items: None
+                items: None,
             })
         }
     }
@@ -43,9 +41,6 @@ pub async fn change(
     ce: &executors::CommandExecutor,
     cmd: commands::car::ChangeCar,
 ) -> connectors::Result<replies::common::StandardReply> {
-    let _c: replies::common::StandardReply = ce
-        .call(commands::car::ReserveCar { services: vec![1] })
-        .await?;
     let result: errors::ErrorCode = dc.car.change(cmd.items).await?;
     if result == errors::ErrorCode::ReplyOk {
         Ok(get_ok_reply!())

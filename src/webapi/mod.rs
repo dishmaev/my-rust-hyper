@@ -1,23 +1,23 @@
-pub mod entities;
-pub mod commands;
-pub mod replies;
-pub mod events;
-pub mod traits;
-pub mod schema;
 pub mod access;
-pub mod routes;
+pub mod commands;
+pub mod entities;
 pub mod errors;
-pub mod settings;
+pub mod events;
 pub mod handlers;
+pub mod replies;
+pub mod routes;
+pub mod schema;
+pub mod settings;
+pub mod traits;
 
 #[cfg(not(test))]
 pub mod collections;
 
-pub mod providers;
 pub mod connectors;
-pub mod router;
-pub mod publishers;
 pub mod executors;
+pub mod providers;
+pub mod publishers;
+pub mod router;
 pub mod workers;
 
 #[cfg(test)]

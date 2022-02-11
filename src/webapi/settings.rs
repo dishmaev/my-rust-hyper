@@ -24,5 +24,5 @@ pub struct Access {
 #[derive(Deserialize)]
 pub struct Authentication {
     pub server: HashMap<String, String>,
-    pub client: Vec<route::ClientAccess>
+    pub client: Vec<route::ClientAccess>,
 }

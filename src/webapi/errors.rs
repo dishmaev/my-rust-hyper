@@ -5,8 +5,8 @@ use std::fmt;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone, ToString, JsonSchema)]
 pub enum ErrorCode {
-    ReplyOk, //command success result
-    AsyncOk, //async command success registered
+    ReplyOk,                  //command success result
+    AsyncOk,                  //async command success registered
     UnsupportedExecModeError, //if not support sync/async call mode
     TooManyRequestsError, //if async queue or reply queue full, http proto return HTTP-status 429
     TimeoutExpiredError,

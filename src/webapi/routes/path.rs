@@ -1,7 +1,7 @@
-pub const HELTH: &str = "/helth";//return uptime is body if alive
-pub const SCHEMA: &str = "/schema";//require object_type
-pub const ERROR: &str = "/error";//require error_code
-pub const STATE: &str = "/state";//require async_command_id
+pub const HELTH: &str = "/helth"; //return uptime is body if alive
+pub const SCHEMA: &str = "/schema"; //require object_type
+pub const ERROR: &str = "/error"; //require error_code
+pub const STATE: &str = "/state"; //require async_command_id
 
 pub const USR_ITEMS: &str = "/usrs";
 pub const USR_SIGHN_IN: &str = "/usr/signin";
@@ -26,9 +26,4 @@ pub const CAR_REMOVE: &str = "/car/remove";
 pub const CAR_RESERVE: &str = "/car/reserve";
 
 #[cfg(test)]
-pub const ROUTE_WITH_EMPTY_BODY: [&str; 4] = [
-    HELTH,
-    USR_SIGHN_IN,
-    USR_SIGHN_UP,
-    USR_ITEMS
-];
+pub const ROUTE_WITH_EMPTY_BODY: [&str; 4] = [HELTH, USR_SIGHN_IN, USR_SIGHN_UP, USR_ITEMS];

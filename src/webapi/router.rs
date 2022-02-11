@@ -2,8 +2,8 @@ use super::entities::route;
 use super::{
     access, commands, connectors, entities, errors, providers, replies, schema, traits::ObjectType,
 };
-use hyper::Body;
 use bytes::Buf;
+use hyper::Body;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -134,12 +134,36 @@ impl Router {
     }
 
     pub fn update_host_mask(host: &str, broker: &str, path: &mut route::ServicePath) {
-        path.helth = path.helth.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
-        path.schema = path.schema.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
-        path.reply_to = path.reply_to.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
-        path.error = path.error.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
-        path.request = Some(path.request.as_ref().unwrap().replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker));
-        path.event = Some(path.event.as_ref().unwrap().replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker));
+        path.helth = path
+            .helth
+            .replace(ROUTER_HOST_MACRO, host)
+            .replace(ROUTER_BROKER_MACRO, broker);
+        path.schema = path
+            .schema
+            .replace(ROUTER_HOST_MACRO, host)
+            .replace(ROUTER_BROKER_MACRO, broker);
+        path.reply_to = path
+            .reply_to
+            .replace(ROUTER_HOST_MACRO, host)
+            .replace(ROUTER_BROKER_MACRO, broker);
+        path.error = path
+            .error
+            .replace(ROUTER_HOST_MACRO, host)
+            .replace(ROUTER_BROKER_MACRO, broker);
+        path.request = Some(
+            path.request
+                .as_ref()
+                .unwrap()
+                .replace(ROUTER_HOST_MACRO, host)
+                .replace(ROUTER_BROKER_MACRO, broker),
+        );
+        path.event = Some(
+            path.event
+                .as_ref()
+                .unwrap()
+                .replace(ROUTER_HOST_MACRO, host)
+                .replace(ROUTER_BROKER_MACRO, broker),
+        );
     }
 
     pub async fn new(
@@ -180,7 +204,9 @@ impl Router {
                 let np = Some(if c.path.is_some() {
                     let mut cp = c.path.as_ref().unwrap().clone();
                     for p in cp.values_mut() {
-                        *p = p.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
+                        *p = p
+                            .replace(ROUTER_HOST_MACRO, host)
+                            .replace(ROUTER_BROKER_MACRO, broker);
                     }
                     cp
                 } else {
@@ -194,7 +220,7 @@ impl Router {
                     exec_mode: c.exec_mode.clone(),
                     reply_type: c.reply_type.clone(),
                     path: np,
-                    state: c.state.clone()
+                    state: c.state.clone(),
                 });
             }
             item.command = nc;
@@ -203,7 +229,9 @@ impl Router {
                 let np = Some(if s.path.is_some() {
                     let mut sp = s.path.as_ref().unwrap().clone();
                     for p in sp.values_mut() {
-                        *p = p.replace(ROUTER_HOST_MACRO, host).replace(ROUTER_BROKER_MACRO, broker);
+                        *p = p
+                            .replace(ROUTER_HOST_MACRO, host)
+                            .replace(ROUTER_BROKER_MACRO, broker);
                     }
                     sp
                 } else {

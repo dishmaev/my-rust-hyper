@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 #[derive(Debug)]
 pub enum SignalCode {
     Exit = 0,
-    _JobNo1 = 1
+    _JobNo1 = 1,
 }
 
 pub async fn mq_sender_worker(
@@ -25,7 +25,7 @@ pub async fn mq_sender_worker(
                     }
                     _ => {}
                 };
-            },
+            }
             None => {
                 if cancel_flag.load(Ordering::SeqCst) {
                     debug!("{} cancel flag", TASK);
@@ -54,7 +54,7 @@ pub async fn mq_receiver_worker(
                     }
                     _ => {}
                 };
-            },
+            }
             None => {
                 if cancel_flag.load(Ordering::SeqCst) {
                     debug!("{} cancel flag", TASK);
@@ -83,7 +83,7 @@ pub async fn event_publisher_worker(
                     }
                     _ => {}
                 };
-            },
+            }
             None => {
                 if cancel_flag.load(Ordering::SeqCst) {
                     debug!("{} cancel flag", TASK);
@@ -112,7 +112,7 @@ pub async fn command_executor_worker(
                     }
                     _ => {}
                 };
-            },
+            }
             None => {
                 if cancel_flag.load(Ordering::SeqCst) {
                     debug!("{} cancel flag", TASK);

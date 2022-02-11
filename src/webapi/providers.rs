@@ -1,18 +1,18 @@
-use super::{connectors, errors, entities};
-use hyper::{Body, Client, Request, Method, StatusCode};
+use super::{connectors, entities, errors};
+use hyper::{Body, Client, Method, Request, StatusCode};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
-#[cfg(feature = "postgres")]
-use sqlx::PgPool;
 #[cfg(feature = "mysql")]
 use sqlx::MySqlPool;
+#[cfg(feature = "postgres")]
+use sqlx::PgPool;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Copy, Clone, ToString, JsonSchema)]
 pub enum Proto {
     Http,
-    Mq
+    Mq,
 }
 
 pub struct HttpProvider;
@@ -30,12 +30,10 @@ impl HttpProvider {
         body: Body,
     ) -> connectors::Result<Body> {
         let mut uri = String::from("");
-        for item in prop.iter(){
+        for item in prop.iter() {
             if uri.len() != 0 {
                 uri.push_str(&format!("&{}={}", item.0, item.1));
-            }
-            else
-            {
+            } else {
                 uri.push_str(&format!("?{}={}", item.0, item.1));
             }
         }
@@ -50,8 +48,7 @@ impl HttpProvider {
         let (parts, body) = resp.into_parts();
         if parts.status == StatusCode::OK {
             Ok(body)
-        }
-        else{
+        } else {
             Err(errors::ProtoProviderError.into())
         }
     }
@@ -97,15 +94,15 @@ impl SqlDbProvider {
     }
 
     pub async fn get_errors(&self) -> connectors::Result<Vec<entities::error::Error>> {
-        Ok(
-            vec![entities::error::Error{
+        Ok(vec![
+            entities::error::Error {
                 error_code: errors::ErrorCode::DatabaseError.to_string(),
-                error_name: "Database error".to_string()
+                error_name: "Database error".to_string(),
             },
-            entities::error::Error{
+            entities::error::Error {
                 error_code: errors::ErrorCode::NotFoundError.to_string(),
-                error_name: "Some items with specified id is not found".to_string()
-            }]
-        )
+                error_name: "Some items with specified id is not found".to_string(),
+            },
+        ])
     }
 }

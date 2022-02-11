@@ -1,6 +1,6 @@
-use sqlx::FromRow;
 use schemars::JsonSchema;
 use serde::Serialize;
+use sqlx::FromRow;
 
 #[derive(Serialize, Clone, FromRow, JsonSchema)]
 pub struct Usr {

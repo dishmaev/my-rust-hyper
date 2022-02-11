@@ -22,6 +22,7 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio::time::Duration;
 use webapi::{access, connectors, executors, publishers, router, routes, settings, workers};
 
 pub fn sync_command_handler(
@@ -120,14 +121,17 @@ async fn main() {
         sasl_mechanism: url.username.map_or(Some(SaslMechanism::Anonymous), |_| {
             Some(SaslMechanism::Plain)
         }),
+        idle_timeout: Some(Duration::from_secs(5)),
     };
 
     let container = Container::new()
         .expect("error while create mq container")
         .start();
 
+    let broker = format!("{}:{}", url.hostname, url.port);
+
     let connection = container
-        .connect(&url.hostname, url.port, opts)
+        .connect(broker.clone(), opts)
         .await
         .expect("error while ceate mq connection");
 
@@ -137,8 +141,6 @@ async fn main() {
         .expect("error while create mq session");
 
     container.start();
-
-    let broker = format!("{}:{}", url.hostname, url.port);
 
     let data_connector_arc = Arc::new(data_connector);
     let access_checker_arc = Arc::new(access_checker);

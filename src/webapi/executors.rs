@@ -45,7 +45,7 @@ impl CommandExecutor {
         match s.send(signal_code).await {
             Ok(_) => Ok({}),
             Err(e) => {
-                error!("command executor: {}", e);
+                error!("send_signal_command_executor: {}", e);
                 return Err(errors::SignalSendError.into());
             }
         }
@@ -63,11 +63,31 @@ impl CommandExecutor {
             .await?;
         if c.len() == 1 {
             //todo: call change_state collection method
-            Ok(entities::executor::AsyncCommandState {
-                id: c[0].id.clone(),
-                state: c[0].state.clone(),
-                state_changed_at: c[0].state_changed_at,
-            })
+            match self
+                .dc
+                .received_async_command
+                .change_state(state.clone(), vec![id.to_string()])
+                .await
+            {
+                Ok(r) => Ok(entities::executor::AsyncCommandState {
+                    //let s = r.
+                    id: c[0].id.clone(),
+                    state: state,
+                    state_changed_at: c[0].state_changed_at,
+                }),
+                Err(e) => {
+                    error!(
+                        "change_received_async_command_state_command_executor: {}",
+                        e
+                    );
+                    return Err(errors::AsyncCommandNotFoundError.into());
+                }
+            }
+            // Ok(entities::executor::AsyncCommandState {
+            //     id: c[0].id.clone(),
+            //     state: c[0].,
+            //     state_changed_at: c[0].state_changed_at,
+            // })
         } else {
             Err(errors::AsyncCommandNotFoundError.into())
         }
@@ -122,15 +142,7 @@ impl CommandExecutor {
                 let token = self
                     .ac
                     .get_client_basic_authorization_token(command.service_name.as_ref().unwrap())?;
-                let response = self
-                    .hp
-                    .execute(
-                        &sp,
-                        prop,
-                        token,
-                        Body::empty(),
-                    )
-                    .await?;
+                let response = self.hp.execute(&sp, prop, token, Body::empty()).await?;
                 let reader = hyper::body::aggregate(response).await?.reader();
                 let reply: Option<entities::executor::AsyncCommandState> =
                     serde_json::from_reader(reader).unwrap_or(None);
@@ -140,14 +152,7 @@ impl CommandExecutor {
                     Err(errors::BadReplyCommandError.into())
                 }
             } else if command.path.contains_key(&providers::Proto::Mq.to_string()) {
-                let response = self
-                    .mp
-                    .execute(
-                        &sp,
-                        prop,
-                        Body::empty(),
-                    )
-                    .await?;
+                let response = self.mp.execute(&sp, prop, Body::empty()).await?;
                 let reader = hyper::body::aggregate(response).await?.reader();
                 let reply: Option<entities::executor::AsyncCommandState> =
                     serde_json::from_reader(reader).unwrap_or(None);

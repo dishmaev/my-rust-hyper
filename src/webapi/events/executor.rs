@@ -1,4 +1,4 @@
-use super::super::{traits, entities};
+use super::super::{entities, traits};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

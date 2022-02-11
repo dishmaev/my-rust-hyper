@@ -7,10 +7,14 @@ pub async fn get(
     Ok(dc.usr.get(ids).await?)
 }
 
-pub async fn signin(_dc: &connectors::DataConnector) -> connectors::Result<replies::common::StandardReply> {
+pub async fn signin(
+    _dc: &connectors::DataConnector,
+) -> connectors::Result<replies::common::StandardReply> {
     Ok(get_ok_reply!())
 }
 
-pub async fn signup(_dc: &connectors::DataConnector) -> connectors::Result<replies::common::StandardReply> {
+pub async fn signup(
+    _dc: &connectors::DataConnector,
+) -> connectors::Result<replies::common::StandardReply> {
     Ok(get_ok_reply!())
 }

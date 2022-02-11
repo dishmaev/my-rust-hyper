@@ -1,4 +1,5 @@
 use super::super::{connectors, entities::executor, errors, providers};
+use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 #[cfg(feature = "postgres")]
 use sqlx::postgres::PgPool;
@@ -466,10 +467,7 @@ impl ReceivedAsyncCommandCollection {
         &self,
         state: String,
         ids: Vec<String>,
-    ) -> connectors::Result<(
-        errors::ErrorCode,
-        Option<Vec<(String, executor::AsyncCommandState)>>,
-    )> {
+    ) -> connectors::Result<(errors::ErrorCode, Option<Vec<executor::AsyncCommandState>>)> {
         if state == executor::CommandSystemState::Initial.to_string()
             || state == executor::CommandSystemState::Completed.to_string()
         {
@@ -478,15 +476,53 @@ impl ReceivedAsyncCommandCollection {
         // todo: set state for ids receive command, if already set, not update
         // state must be exists in ServiceCommand.state else raise UnknownAsyncCommandStateError
         // add state history
-        Ok((errors::ErrorCode::ReplyOk, None))
+        #[cfg(feature = "postgres")]
+        let pool: &PgPool = &self.data_provider.pool;
+        #[cfg(feature = "mysql")]
+        let pool: &MySqlPool = &self.data_provider.pool;
+        let tx = pool.begin().await?;
+        let mut items = Vec::<executor::AsyncCommandState>::new();
+        let query = self.exp_helper.get_select_str_exp(
+            "webapi.received_async_command",
+            "id,state,state_changed_at",
+            &ids,
+        );
+        let mut cursor = sqlx::query(&query).fetch(pool);
+        while let Some(rec) = cursor.try_next().await? {
+            let cur_state: String = rec.get(1);
+            if cur_state != state {
+                let now = chrono::offset::Utc::now();
+                items.push(executor::AsyncCommandState {
+                    id: rec.get(0),
+                    state: cur_state,
+                    state_changed_at: now,
+                });
+            } else {
+                items.push(executor::AsyncCommandState {
+                    id: rec.get(0),
+                    state: cur_state,
+                    state_changed_at: rec.get(2),
+                });
+            }
+        }
+        if ids.len() == items.len() {
+            match tx.commit().await {
+                Ok(_) => Ok((errors::ErrorCode::ReplyOk, Some(items))),
+                Err(e) => {
+                    error!("change_state_received_async_commands db commit: {}", e);
+                    Ok((errors::ErrorCode::DatabaseError, None))
+                }
+            }
+        } else {
+            tx.rollback().await?;
+            Ok((errors::ErrorCode::NotFoundError, None))
+        }
     }
 
-    // pub async fn complete(
-    //     &self,
-    //     ids: Vec<String>,
-    // ) -> connectors::Result<errors::ErrorCode> {
-    // todo: set CommandSystemState.Completed state for ids command, if already set, not update
-    // }
+    pub async fn complete(&self, ids: Vec<String>) -> connectors::Result<errors::ErrorCode> {
+        //todo: set CommandSystemState.Completed state for ids command, if already set, not update
+        Ok(errors::ErrorCode::ReplyOk)
+    }
 
     pub async fn remove(&self, ids: Vec<String>) -> connectors::Result<errors::ErrorCode> {
         #[cfg(feature = "postgres")]

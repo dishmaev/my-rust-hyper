@@ -1,6 +1,6 @@
-use sqlx::FromRow;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 
 #[derive(Deserialize, Serialize, Clone, FromRow, JsonSchema)]
 pub struct Car {
